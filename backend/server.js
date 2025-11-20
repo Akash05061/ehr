@@ -99,7 +99,6 @@ const initializeAdmin = async () => {
       createdAt: new Date().toISOString()
     });
     console.log('✅ Admin user initialized');
-    console.log('✅ Admin user initialized');
 
 // ------------------ ADD MULTIPLE DUMMY PATIENTS ------------------
 if (patients.length === 0) {
