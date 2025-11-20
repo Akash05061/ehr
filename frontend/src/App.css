@@ -905,3 +905,18 @@ body {
 .Toastify__toast--info {
   background: #3498db;
 }
+
+/* Light theme is default — all your existing CSS remains valid */
+/* Minor additions: */
+.patient-profile .tabs button.active {
+  background: #3498db;
+  color: white;
+}
+
+.list-item {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
