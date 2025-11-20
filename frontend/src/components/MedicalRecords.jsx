@@ -2,13 +2,18 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const MedicalRecords = () => {
-  const { id: patientId } = useParams();
+const API_BASE_URL = "http://13.127.5.209:3001/api";
+
+const MedicalRecords = ({ embedded = false }) => {
+  // If embedded, patientId comes as prop
+  const routeParams = useParams();
+  const patientId = embedded ? embedded : routeParams.id;
+
   const { token } = useAuth();
 
   const [medicalRecords, setMedicalRecords] = useState([]);
-  const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
 
   const [formData, setFormData] = useState({
     visitDate: new Date().toISOString().split("T")[0],
@@ -24,179 +29,178 @@ const MedicalRecords = () => {
       oxygenSaturation: "",
       height: "",
       weight: "",
-      bmi: "",
+      bmi: ""
     },
     notes: "",
-    followUpDate: "",
+    followUpDate: ""
   });
-
-  const API_BASE_URL = "http://13.127.5.209:3001/api";
 
   useEffect(() => {
     if (patientId) fetchMedicalRecords();
   }, [patientId]);
 
+  // ----------------------------- FETCH RECORDS -----------------------------
   const fetchMedicalRecords = async () => {
     try {
       setLoading(true);
 
-      const response = await fetch(
+      const res = await fetch(
         `${API_BASE_URL}/patients/${patientId}/medical-records`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}` }
         }
       );
 
-      if (!response.ok) {
-        console.error("Failed to fetch medical records");
-        return;
+      if (res.ok) {
+        const data = await res.json();
+        setMedicalRecords(data.medicalRecords || []);
       }
-
-      const data = await response.json();
-      setMedicalRecords(data.medicalRecords || []);
     } catch (err) {
-      console.error("Error fetching medical records:", err);
+      console.error("Error loading records:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateBMI = () => {
-    const height = parseFloat(formData.vitals.height);
-    const weight = parseFloat(formData.vitals.weight);
+  // ----------------------------- SUBMIT NEW RECORD -----------------------------
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
 
-    if (height > 0 && weight > 0) {
-      const heightM = height / 100;
-      const bmi = (weight / (heightM * heightM)).toFixed(1);
+    try {
+      const cleanPayload = {
+        ...formData,
+        symptoms: formData.symptoms
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+        medications: formData.medications
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean)
+      };
 
-      setFormData((prev) => ({
-        ...prev,
-        vitals: { ...prev.vitals, bmi },
-      }));
+      const res = await fetch(
+        `${API_BASE_URL}/patients/${patientId}/medical-records`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(cleanPayload)
+        }
+      );
+
+      if (res.ok) {
+        alert("Medical record added!");
+        setShowForm(false);
+
+        // Reset form
+        setFormData({
+          visitDate: new Date().toISOString().split("T")[0],
+          symptoms: "",
+          diagnosis: "",
+          treatment: "",
+          medications: "",
+          vitals: {
+            bloodPressure: "",
+            temperature: "",
+            heartRate: "",
+            respiratoryRate: "",
+            oxygenSaturation: "",
+            height: "",
+            weight: "",
+            bmi: ""
+          },
+          notes: "",
+          followUpDate: ""
+        });
+
+        fetchMedicalRecords();
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Error adding medical record");
+      }
+    } catch (err) {
+      console.error("Submit error:", err);
+      alert("Submit failed.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ----------------------------- HANDLE INPUT -----------------------------
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     if (name.startsWith("vitals.")) {
-      const field = name.split(".")[1];
+      const key = name.split(".")[1];
+
       setFormData((prev) => ({
         ...prev,
-        vitals: { ...prev.vitals, [field]: value },
+        vitals: { ...prev.vitals, [key]: value }
       }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      visitDate: new Date().toISOString().split("T")[0],
-      symptoms: "",
-      diagnosis: "",
-      treatment: "",
-      medications: "",
-      vitals: {
-        bloodPressure: "",
-        temperature: "",
-        heartRate: "",
-        respiratoryRate: "",
-        oxygenSaturation: "",
-        height: "",
-        weight: "",
-        bmi: "",
-      },
-      notes: "",
-      followUpDate: "",
-    });
-  };
+  // ----------------------------- BMI CALC -----------------------------
+  const calculateBMI = () => {
+    const h = parseFloat(formData.vitals.height);
+    const w = parseFloat(formData.vitals.weight);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+    if (h > 0 && w > 0) {
+      const bmi = (w / ((h / 100) ** 2)).toFixed(1);
 
-    try {
-      const submitData = {
-        ...formData,
-        symptoms: formData.symptoms
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        medications: formData.medications
-          .split(",")
-          .map((m) => m.trim())
-          .filter(Boolean),
-      };
-
-      const response = await fetch(
-        `${API_BASE_URL}/patients/${patientId}/medical-records`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(submitData),
-        }
-      );
-
-      if (response.ok) {
-        alert("Medical record added successfully!");
-        resetForm();
-        setShowForm(false);
-        fetchMedicalRecords();
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to add medical record");
-      }
-    } catch (err) {
-      console.error("Error:", err);
-      alert("Network error while adding record");
-    } finally {
-      setLoading(false);
+      setFormData((prev) => ({
+        ...prev,
+        vitals: { ...prev.vitals, bmi }
+      }));
     }
   };
 
+  // ----------------------------- LOADING -----------------------------
   if (loading && medicalRecords.length === 0) {
-    return (
-      <div className="medical-records">
-        <div className="loading">Loading medical records...</div>
-      </div>
-    );
+    return <div className="loading">Loading medical records...</div>;
   }
+
+  // =====================================================================
+  // ----------------------------- RENDER -----------------------------
+  // =====================================================================
 
   return (
     <div className="medical-records">
-      {/* HEADER */}
-      <div className="page-header">
-        <div className="header-content">
+      {/* ------- HEADER ------- */}
+      {!embedded && (
+        <div className="page-header">
           <h1>Medical Records</h1>
           <p>Patient ID: {patientId}</p>
-        </div>
 
-        <div className="header-actions">
-          {/* YOU CHOSE YES → KEEP BACK BUTTON */}
           <Link to="/patients" className="secondary-button">
-            ← Back to Patients
+            ← Back
           </Link>
-
-          <button
-            className="primary-button"
-            onClick={() => setShowForm(!showForm)}
-          >
-            {showForm ? "Cancel" : "➕ Add Medical Record"}
-          </button>
         </div>
+      )}
+
+      {/* ------- ADD BUTTON ------- */}
+      <div style={{ marginBottom: "20px" }}>
+        <button
+          className="primary-button"
+          onClick={() => setShowForm(!showForm)}
+        >
+          {showForm ? "✖ Cancel" : "➕ Add Medical Record"}
+        </button>
       </div>
 
-      {/* FORM */}
+      {/* ------- ADD FORM ------- */}
       {showForm && (
-        <div className="medical-record-form card">
+        <div className="card medical-record-form">
           <h3>Add Medical Record</h3>
 
           <form onSubmit={handleSubmit}>
-            {/* Basic Fields */}
+            {/* ---------------- GENERAL SECTION ---------------- */}
             <div className="form-row">
               <div className="form-group">
                 <label>Visit Date *</label>
@@ -214,7 +218,7 @@ const MedicalRecords = () => {
                 <input
                   type="text"
                   name="symptoms"
-                  placeholder="Fever, cough (comma separated)"
+                  placeholder="Fever, cough..."
                   value={formData.symptoms}
                   onChange={handleChange}
                   required
@@ -222,14 +226,13 @@ const MedicalRecords = () => {
               </div>
             </div>
 
-            {/* Diagnosis + Treatment */}
+            {/* ---------------- DIAGNOSIS + TREATMENT ---------------- */}
             <div className="form-row">
               <div className="form-group">
                 <label>Diagnosis</label>
                 <input
                   type="text"
                   name="diagnosis"
-                  placeholder="Enter diagnosis"
                   value={formData.diagnosis}
                   onChange={handleChange}
                 />
@@ -240,26 +243,25 @@ const MedicalRecords = () => {
                 <input
                   type="text"
                   name="treatment"
-                  placeholder="Enter treatment"
                   value={formData.treatment}
                   onChange={handleChange}
                 />
               </div>
             </div>
 
-            {/* Medications */}
+            {/* ---------------- MEDICATIONS ---------------- */}
             <div className="form-group">
               <label>Medications</label>
               <input
                 type="text"
                 name="medications"
-                placeholder="Paracetamol, Amoxicillin..."
+                placeholder="Paracetamol, Ibuprofen..."
                 value={formData.medications}
                 onChange={handleChange}
               />
             </div>
 
-            {/* Vitals */}
+            {/* ---------------- VITALS ---------------- */}
             <div className="vitals-section">
               <h4>Vitals</h4>
 
@@ -269,7 +271,7 @@ const MedicalRecords = () => {
                   <input
                     type="text"
                     name="vitals.bloodPressure"
-                    placeholder="120/80 mmHg"
+                    placeholder="120/80"
                     value={formData.vitals.bloodPressure}
                     onChange={handleChange}
                   />
@@ -280,17 +282,16 @@ const MedicalRecords = () => {
                   <input
                     type="number"
                     name="vitals.temperature"
-                    step="0.1"
-                    placeholder="37.0"
                     value={formData.vitals.temperature}
                     onChange={handleChange}
+                    step="0.1"
                   />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Heart Rate (bpm)</label>
+                  <label>Heart Rate</label>
                   <input
                     type="number"
                     name="vitals.heartRate"
@@ -312,12 +313,14 @@ const MedicalRecords = () => {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Oxygen Saturation (%)</label>
+                  <label>O2 Saturation (%)</label>
                   <input
                     type="number"
                     name="vitals.oxygenSaturation"
                     value={formData.vitals.oxygenSaturation}
                     onChange={handleChange}
+                    min="0"
+                    max="100"
                   />
                 </div>
 
@@ -342,7 +345,6 @@ const MedicalRecords = () => {
                     value={formData.vitals.weight}
                     onChange={handleChange}
                     onBlur={calculateBMI}
-                    step="0.1"
                   />
                 </div>
 
@@ -351,27 +353,25 @@ const MedicalRecords = () => {
                   <input
                     type="text"
                     name="vitals.bmi"
+                    value={formData.vitals.bmi}
                     readOnly
                     className="readonly"
-                    value={formData.vitals.bmi}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Clinical Notes */}
+            {/* ---------------- NOTES + FOLLOWUP ---------------- */}
             <div className="form-group">
               <label>Clinical Notes</label>
               <textarea
                 name="notes"
                 rows="3"
-                placeholder="Additional details..."
                 value={formData.notes}
                 onChange={handleChange}
               />
             </div>
 
-            {/* Follow Up */}
             <div className="form-group">
               <label>Follow-up Date</label>
               <input
@@ -382,10 +382,9 @@ const MedicalRecords = () => {
               />
             </div>
 
-            {/* Buttons */}
             <div className="form-actions">
-              <button type="submit" className="primary-button">
-                Save Record
+              <button className="primary-button" type="submit">
+                ➕ Add Record
               </button>
 
               <button
@@ -400,112 +399,59 @@ const MedicalRecords = () => {
         </div>
       )}
 
-      {/* LIST OF RECORDS */}
-      <div className="medical-records-list">
-        <div className="section-header">
-          <h2>Medical History</h2>
-          <span className="record-count">({medicalRecords.length})</span>
-        </div>
+      {/* ------- RECORD LIST ------- */}
+      <div className="medical-records-list mt-4">
+        <h2 className="mb-3">
+          Medical History ({medicalRecords.length} records)
+        </h2>
 
         {medicalRecords.length === 0 ? (
-          <div className="no-data">
-            <p>No medical records found.</p>
-            <p>Click "Add Medical Record" to create the first entry.</p>
-          </div>
+          <p className="no-data">No medical records.</p>
         ) : (
           <div className="records-grid">
-            {medicalRecords.map((record) => (
-              <div key={record.id} className="medical-record-card card">
-                <div className="record-header">
-                  <h3>
-                    Visit on {new Date(record.visitDate).toLocaleDateString()}
-                  </h3>
-                  <span className="record-id">Record #{record.id}</span>
-                </div>
+            {medicalRecords.map((r) => (
+              <div key={r.id} className="card medical-record-card">
+                <h3>Visit: {new Date(r.visitDate).toLocaleDateString()}</h3>
 
-                <div className="record-content">
-                  {/* Symptoms */}
-                  <div className="record-section">
-                    <strong>🩺 Symptoms:</strong>
-                    <div className="symptoms-list">
-                      {record.symptoms.map((sym, i) => (
-                        <span key={i} className="symptom-tag">
-                          {sym}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                <p>
+                  <strong>Symptoms:</strong> {r.symptoms.join(", ")}
+                </p>
 
-                  {/* Diagnosis */}
-                  {record.diagnosis && (
-                    <div className="record-section">
-                      <strong>📋 Diagnosis:</strong> {record.diagnosis}
-                    </div>
-                  )}
+                {r.diagnosis && (
+                  <p>
+                    <strong>Diagnosis:</strong> {r.diagnosis}
+                  </p>
+                )}
 
-                  {/* Treatment */}
-                  {record.treatment && (
-                    <div className="record-section">
-                      <strong>💊 Treatment:</strong> {record.treatment}
-                    </div>
-                  )}
+                {r.treatment && (
+                  <p>
+                    <strong>Treatment:</strong> {r.treatment}
+                  </p>
+                )}
 
-                  {/* Medications */}
-                  {record.medications.length > 0 && (
-                    <div className="record-section">
-                      <strong>💊 Medications:</strong>
-                      <div className="medications-list">
-                        {record.medications.map((m, i) => (
-                          <span key={i} className="medication-tag">
-                            {m}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                {r.medications.length > 0 && (
+                  <p>
+                    <strong>Medications:</strong> {r.medications.join(", ")}
+                  </p>
+                )}
 
-                  {/* Vitals */}
-                  {Object.values(record.vitals).some((v) => v) && (
-                    <div className="record-section">
-                      <strong>📊 Vitals:</strong>
-                      <div className="vitals-grid">
-                        {Object.entries(record.vitals).map(([k, v]) =>
-                          v ? (
-                            <div key={k} className="vital-item">
-                              <span className="vital-label">
-                                {k.toUpperCase()}:
-                              </span>
-                              <span className="vital-value">{v}</span>
-                            </div>
-                          ) : null
-                        )}
-                      </div>
-                    </div>
-                  )}
+                {r.notes && (
+                  <p>
+                    <strong>Notes:</strong> {r.notes}
+                  </p>
+                )}
 
-                  {/* Notes */}
-                  {record.notes && (
-                    <div className="record-section">
-                      <strong>📝 Notes:</strong>
-                      <p>{record.notes}</p>
-                    </div>
-                  )}
+                {r.followUpDate && (
+                  <p>
+                    <strong>Follow-up:</strong>{" "}
+                    {new Date(r.followUpDate).toLocaleDateString()}
+                  </p>
+                )}
 
-                  {/* Follow up */}
-                  {record.followUpDate && (
-                    <div className="record-section">
-                      <strong>📅 Follow-up:</strong>{" "}
-                      {new Date(record.followUpDate).toLocaleDateString()}
-                    </div>
-                  )}
-                </div>
-
-                <div className="record-footer">
-                  <small>
-                    Added by User #{record.createdBy} on{" "}
-                    {new Date(record.createdAt).toLocaleDateString()}
-                  </small>
-                </div>
+                <small className="text-muted">
+                  Added by User #{r.createdBy} on{" "}
+                  {new Date(r.createdAt).toLocaleDateString()}
+                </small>
               </div>
             ))}
           </div>
