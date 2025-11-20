@@ -99,6 +99,76 @@ const initializeAdmin = async () => {
       createdAt: new Date().toISOString()
     });
     console.log('✅ Admin user initialized');
+    console.log('✅ Admin user initialized');
+
+// ------------------ ADD MULTIPLE DUMMY PATIENTS ------------------
+if (patients.length === 0) {
+  patients.push(
+    {
+      id: nextId.patients++,
+      firstName: "John",
+      lastName: "Doe",
+      age: 30,
+      gender: "Male",
+      phone: "9876543210",
+      email: "john.doe@example.com",
+      address: "Bangalore",
+      medicalHistory: "No major issues",
+      createdAt: new Date(),
+    },
+    {
+      id: nextId.patients++,
+      firstName: "Priya",
+      lastName: "Sharma",
+      age: 26,
+      gender: "Female",
+      phone: "9811122233",
+      email: "priya.sharma@example.com",
+      address: "Chennai",
+      medicalHistory: "Allergic to peanuts",
+      createdAt: new Date(),
+    },
+    {
+      id: nextId.patients++,
+      firstName: "Amit",
+      lastName: "Kumar",
+      age: 41,
+      gender: "Male",
+      phone: "9900334477",
+      email: "amit.kumar@example.com",
+      address: "Delhi",
+      medicalHistory: "Diabetic Type 2",
+      createdAt: new Date(),
+    },
+    {
+      id: nextId.patients++,
+      firstName: "Sara",
+      lastName: "Williams",
+      age: 34,
+      gender: "Female",
+      phone: "9877001122",
+      email: "sara.williams@example.com",
+      address: "Hyderabad",
+      medicalHistory: "Blood pressure issues",
+      createdAt: new Date(),
+    },
+    {
+      id: nextId.patients++,
+      firstName: "Rahul",
+      lastName: "Verma",
+      age: 29,
+      gender: "Male",
+      phone: "9001234567",
+      email: "rahul.verma@example.com",
+      address: "Mumbai",
+      medicalHistory: "Asthma",
+      createdAt: new Date(),
+    }
+  );
+
+  console.log("🧪 Added 5 dummy patients");
+}
+
   } catch (error) {
     console.error('❌ Failed to initialize admin user:', error);
   }
