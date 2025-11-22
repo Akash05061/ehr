@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: 'http://13.127.5.209:3001/api',
+  baseURL: 'http://35.154.95.223:3001/api',   // ✅ Correct backend IP
   timeout: 10000,
 });
 
@@ -52,7 +52,6 @@ api.interceptors.response.use(
     console.log('🔍 Response Data:', error.response?.data);
     console.log('🔍 Response Headers:', error.response?.headers);
     
-    // Network errors (CORS, timeout, etc.)
     if (!error.response) {
       console.log('🌐 Network Error - No response received');
       console.log('Possible CORS issue or server unreachable');
