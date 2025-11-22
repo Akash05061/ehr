@@ -9,6 +9,8 @@ import {
   analyticsAPI
 } from "../services/api";
 
+import api from "../services/api"; // axios instance
+
 const PatientProfile = () => {
   const { id: patientId } = useParams();
   const { token } = useAuth();
@@ -28,29 +30,27 @@ const PatientProfile = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      // Patient Info
+      // Fetch patient
       const pRes = await patientsAPI.getById(patientId);
 
-      // Medical Records
-      const rRes = await axios.get(
-        `${process.env.REACT_APP_API_URL}/patients/${patientId}/medical-records`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      // Fetch medical records (CORRECT ENDPOINT)
+      const rRes = await api.get(`/medical-records`, {
+        params: { patientId }
+      });
 
-      // Prescriptions
+      // Fetch prescriptions
       const prRes = await prescriptionsAPI.getByPatient(patientId);
 
-      // Appointments
+      // Fetch appointments
       const aRes = await appointmentsAPI.getAll({ patientId });
 
       setPatient(pRes.data);
       setRecords(rRes.data.medicalRecords || []);
       setPrescriptions(prRes.data.prescriptions || []);
       setAppointments(aRes.data.appointments || []);
+
     } catch (err) {
-      console.error("Error loading patient data", err);
+      console.error("Error loading patient data:", err);
     } finally {
       setLoading(false);
     }
@@ -63,11 +63,8 @@ const PatientProfile = () => {
   return (
     <div className="patient-profile">
 
-      {/* Header */}
       <div className="page-header">
-        <h1>
-          {patient.firstName} {patient.lastName}
-        </h1>
+        <h1>{patient.firstName} {patient.lastName}</h1>
         <p>Patient ID: {patient.id}</p>
 
         <Link to="/patients" className="secondary-button">
@@ -75,7 +72,6 @@ const PatientProfile = () => {
         </Link>
       </div>
 
-      {/* TABS */}
       <div className="tabs">
         {["profile", "medical", "appointments", "prescriptions"].map((tab) => (
           <button
@@ -91,10 +87,8 @@ const PatientProfile = () => {
         ))}
       </div>
 
-      {/* CONTENT */}
       <div className="content-area mt-3">
 
-        {/* PROFILE TAB */}
         {activeTab === "profile" && (
           <div className="card">
             <h2>Basic Information</h2>
@@ -103,7 +97,6 @@ const PatientProfile = () => {
             <div className="list-item"><strong>Gender:</strong> {patient.gender}</div>
             <div className="list-item"><strong>Phone:</strong> {patient.phone}</div>
             <div className="list-item"><strong>Email:</strong> {patient.email || "N/A"}</div>
-
             {patient.address && (
               <div className="list-item">
                 <strong>Address:</strong> {JSON.stringify(patient.address)}
@@ -112,15 +105,11 @@ const PatientProfile = () => {
           </div>
         )}
 
-        {/* MEDICAL TAB */}
         {activeTab === "medical" && (
           <div className="card">
             <h2>Medical Records</h2>
 
-            <Link
-              to={`/patients/${patientId}/records`}
-              className="primary-button"
-            >
+            <Link to={`/patients/${patientId}/records`} className="primary-button">
               ➕ Add Medical Record
             </Link>
 
@@ -129,9 +118,7 @@ const PatientProfile = () => {
             ) : (
               records.map((rec) => (
                 <div key={rec.id} className="list-item mt-3">
-                  <strong>Visit:</strong>{" "}
-                  {new Date(rec.visitDate).toLocaleDateString()}
-                  <br />
+                  <strong>Visit:</strong> {new Date(rec.visitDate).toLocaleDateString()} <br />
                   <strong>Symptoms:</strong> {rec.symptoms.join(", ")}
                   {rec.diagnosis && <p><strong>Diagnosis:</strong> {rec.diagnosis}</p>}
                   {rec.treatment && <p><strong>Treatment:</strong> {rec.treatment}</p>}
@@ -141,7 +128,6 @@ const PatientProfile = () => {
           </div>
         )}
 
-        {/* APPOINTMENTS TAB */}
         {activeTab === "appointments" && (
           <div className="card">
             <h2>Appointments</h2>
@@ -155,16 +141,13 @@ const PatientProfile = () => {
                   <br />
                   Reason: {apt.reason}
                   <br />
-                  <span className={`status-badge ${apt.status}`}>
-                    {apt.status}
-                  </span>
+                  <span className={`status-badge ${apt.status}`}>{apt.status}</span>
                 </div>
               ))
             )}
           </div>
         )}
 
-        {/* PRESCRIPTIONS TAB */}
         {activeTab === "prescriptions" && (
           <div className="card">
             <h2>Prescriptions</h2>
