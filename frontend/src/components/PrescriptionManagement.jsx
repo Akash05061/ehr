@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-
-const API_BASE_URL = "http://13.127.5.209:3001/api";
+import { prescriptionsAPI } from "../services/api";
 
 const PrescriptionManagement = () => {
   const { token } = useAuth();
+
   const [showForm, setShowForm] = useState(false);
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,63 +20,50 @@ const PrescriptionManagement = () => {
     fetchPrescriptions();
   }, []);
 
+  // ---------------------- FETCH PRESCRIPTIONS ----------------------
   const fetchPrescriptions = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/prescriptions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPrescriptions(data.prescriptions || []);
-      } else {
-        console.error("Failed to load prescriptions");
-      }
-    } catch (error) {
-      console.error("Error loading prescriptions:", error);
+      // Backend: GET /prescriptions
+      const res = await prescriptionsAPI.getByPatient(""); // fetch all
+      setPrescriptions(res.data.prescriptions || []);
+    } catch (err) {
+      console.error("Error loading prescriptions:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  // ---------------------- CREATE PRESCRIPTION ----------------------
   const handleCreatePrescription = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/prescriptions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      const res = await prescriptionsAPI.create(formData);
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (res.status === 201 || res.data.success) {
         alert("Prescription created!");
         setShowForm(false);
+
         setFormData({
           patientId: "",
           medicationName: "",
           dosage: "",
           instructions: "",
         });
+
         fetchPrescriptions();
-      } else {
-        alert(data.error || "Failed to create prescription");
       }
     } catch (error) {
-      console.error(error);
-      alert("Error creating prescription");
+      console.error("Create prescription error:", error);
+      alert(error.response?.data?.error || "Error creating prescription");
     } finally {
       setLoading(false);
     }
   };
 
+  // ---------------------- RENDER ----------------------
   return (
     <div className="prescription-management">
       <div className="page-header">
@@ -155,7 +142,9 @@ const PrescriptionManagement = () => {
       <div className="prescriptions-list">
         <div className="section-header">
           <h2>All Prescriptions</h2>
-          <span className="record-count">({prescriptions.length} entries)</span>
+          <span className="record-count">
+            ({prescriptions.length} entries)
+          </span>
         </div>
 
         {loading ? (
