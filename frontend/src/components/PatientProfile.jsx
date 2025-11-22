@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const API_BASE_URL = "http://13.127.5.209:3001/api";
+import {
+  patientsAPI,
+  appointmentsAPI,
+  prescriptionsAPI,
+  analyticsAPI
+} from "../services/api";
 
 const PatientProfile = () => {
   const { id: patientId } = useParams();
@@ -22,38 +27,28 @@ const PatientProfile = () => {
 
   const loadAllData = async () => {
     setLoading(true);
-
     try {
-      // Fetch Patient
-      const res1 = await fetch(`${API_BASE_URL}/patients/${patientId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const patientData = await res1.json();
+      // Patient Info
+      const pRes = await patientsAPI.getById(patientId);
 
-      // Fetch Medical Records
-      const res2 = await fetch(
-        `${API_BASE_URL}/patients/${patientId}/medical-records`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      // Medical Records
+      const rRes = await axios.get(
+        `${process.env.REACT_APP_API_URL}/patients/${patientId}/medical-records`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
       );
-      const recordData = await res2.json();
 
-      // Fetch Prescriptions
-      const res3 = await fetch(`${API_BASE_URL}/prescriptions?patientId=${patientId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const pData = await res3.json();
+      // Prescriptions
+      const prRes = await prescriptionsAPI.getByPatient(patientId);
 
-      // Fetch Appointments
-      const res4 = await fetch(
-        `${API_BASE_URL}/appointments?patientId=${patientId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const aData = await res4.json();
+      // Appointments
+      const aRes = await appointmentsAPI.getAll({ patientId });
 
-      setPatient(patientData);
-      setRecords(recordData.medicalRecords || []);
-      setPrescriptions(pData.prescriptions || []);
-      setAppointments(aData.appointments || []);
+      setPatient(pRes.data);
+      setRecords(rRes.data.medicalRecords || []);
+      setPrescriptions(prRes.data.prescriptions || []);
+      setAppointments(aRes.data.appointments || []);
     } catch (err) {
       console.error("Error loading patient data", err);
     } finally {
@@ -67,6 +62,7 @@ const PatientProfile = () => {
 
   return (
     <div className="patient-profile">
+
       {/* Header */}
       <div className="page-header">
         <h1>
@@ -95,9 +91,10 @@ const PatientProfile = () => {
         ))}
       </div>
 
-      {/* CONTENT AREA */}
+      {/* CONTENT */}
       <div className="content-area mt-3">
-        {/* =============== PROFILE TAB =============== */}
+
+        {/* PROFILE TAB */}
         {activeTab === "profile" && (
           <div className="card">
             <h2>Basic Information</h2>
@@ -106,7 +103,6 @@ const PatientProfile = () => {
             <div className="list-item"><strong>Gender:</strong> {patient.gender}</div>
             <div className="list-item"><strong>Phone:</strong> {patient.phone}</div>
             <div className="list-item"><strong>Email:</strong> {patient.email || "N/A"}</div>
-            <div className="list-item"><strong>Blood Type:</strong> {patient.bloodType || "Unknown"}</div>
 
             {patient.address && (
               <div className="list-item">
@@ -116,12 +112,13 @@ const PatientProfile = () => {
           </div>
         )}
 
-        {/* =============== MEDICAL RECORDS TAB =============== */}
+        {/* MEDICAL TAB */}
         {activeTab === "medical" && (
           <div className="card">
             <h2>Medical Records</h2>
-            <Link 
-              to={`/patient/${patientId}/medical-records`} 
+
+            <Link
+              to={`/patients/${patientId}/records`}
               className="primary-button"
             >
               ➕ Add Medical Record
@@ -132,7 +129,8 @@ const PatientProfile = () => {
             ) : (
               records.map((rec) => (
                 <div key={rec.id} className="list-item mt-3">
-                  <strong>Visit:</strong> {new Date(rec.visitDate).toLocaleDateString()}
+                  <strong>Visit:</strong>{" "}
+                  {new Date(rec.visitDate).toLocaleDateString()}
                   <br />
                   <strong>Symptoms:</strong> {rec.symptoms.join(", ")}
                   {rec.diagnosis && <p><strong>Diagnosis:</strong> {rec.diagnosis}</p>}
@@ -143,7 +141,7 @@ const PatientProfile = () => {
           </div>
         )}
 
-        {/* =============== APPOINTMENTS TAB =============== */}
+        {/* APPOINTMENTS TAB */}
         {activeTab === "appointments" && (
           <div className="card">
             <h2>Appointments</h2>
@@ -166,7 +164,7 @@ const PatientProfile = () => {
           </div>
         )}
 
-        {/* =============== PRESCRIPTIONS TAB =============== */}
+        {/* PRESCRIPTIONS TAB */}
         {activeTab === "prescriptions" && (
           <div className="card">
             <h2>Prescriptions</h2>
@@ -186,6 +184,7 @@ const PatientProfile = () => {
             )}
           </div>
         )}
+
       </div>
     </div>
   );
