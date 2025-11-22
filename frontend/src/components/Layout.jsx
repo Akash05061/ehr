@@ -25,8 +25,9 @@ const Layout = ({ children }) => {
     { name: 'Admin', path: '/admin', roles: ['admin'] },
   ];
 
-  const userNavigation = navigation.filter(item => 
-    item.roles.includes(user?.role) || item.roles.includes('admin')
+  // ✅ FIXED: Now shows routes only for user's real role
+  const userNavigation = navigation.filter(item =>
+    item.roles.includes(user?.role)
   );
 
   return (
@@ -61,32 +62,31 @@ const Layout = ({ children }) => {
 
       {/* Main Content */}
       <main className="main-content">
-        {/* Top Header */}
         <header className="top-header">
-          <button 
+          <button
             className="mobile-menu-btn"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             ☰
           </button>
+
           <div className="header-info">
             <span>EHR System v2.0.0</span>
           </div>
+
           <div className="user-info">
             <span>{user?.firstName} {user?.lastName}</span>
             <span className="role-badge">{user?.role}</span>
           </div>
         </header>
 
-        {/* Page Content */}
         <div className="content-area">
           {children}
         </div>
       </main>
 
-      {/* Mobile Overlay */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="mobile-overlay"
           onClick={() => setIsMobileMenuOpen(false)}
         />
