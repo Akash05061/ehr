@@ -8,6 +8,7 @@ const Login = () => {
     password: ''
   });
   const [loading, setLoading] = useState(false);
+  
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -16,11 +17,11 @@ const Login = () => {
     setLoading(true);
 
     const result = await login(formData.username, formData.password);
-    
+
     if (result.success) {
       navigate('/dashboard');
     }
-    
+
     setLoading(false);
   };
 
@@ -35,7 +36,9 @@ const Login = () => {
     <div className="auth-container">
       <div className="auth-card">
         <h2>EHR System Login</h2>
+
         <form onSubmit={handleSubmit}>
+          
           <div className="form-group">
             <label htmlFor="username">Username</label>
             <input
@@ -77,8 +80,9 @@ const Login = () => {
           <p>
             Don't have an account? <Link to="/register">Register here</Link>
           </p>
+
           <p className="demo-credentials">
-            Demo: admin / admin123
+            Demo Credentials: <strong>admin / admin123</strong>
           </p>
         </div>
       </div>
