@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import api from "../services/api"; // axios instance
 
-const API_BASE_URL = "http://13.127.5.209:3001/api";
-
-const MedicalRecords = ({ embedded = false }) => {
-  // If embedded, patientId comes as prop
+const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
   const routeParams = useParams();
-  const patientId = embedded ? embedded : routeParams.id;
+  const patientId = embeddedPatientId || routeParams.id;
 
   const { token } = useAuth();
 
@@ -39,22 +37,16 @@ const MedicalRecords = ({ embedded = false }) => {
     if (patientId) fetchMedicalRecords();
   }, [patientId]);
 
-  // ----------------------------- FETCH RECORDS -----------------------------
+  // ---------------------- FETCH RECORDS ----------------------
   const fetchMedicalRecords = async () => {
     try {
       setLoading(true);
 
-      const res = await fetch(
-        `${API_BASE_URL}/patients/${patientId}/medical-records`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const res = await api.get("/medical-records", {
+        params: { patientId }
+      });
 
-      if (res.ok) {
-        const data = await res.json();
-        setMedicalRecords(data.medicalRecords || []);
-      }
+      setMedicalRecords(res.data.medicalRecords || []);
     } catch (err) {
       console.error("Error loading records:", err);
     } finally {
@@ -62,37 +54,33 @@ const MedicalRecords = ({ embedded = false }) => {
     }
   };
 
-  // ----------------------------- SUBMIT NEW RECORD -----------------------------
+  // ---------------------- SUBMIT RECORD ----------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       const cleanPayload = {
-        ...formData,
+        patientId,
+        visitDate: formData.visitDate,
         symptoms: formData.symptoms
           .split(",")
           .map((x) => x.trim())
           .filter(Boolean),
+        diagnosis: formData.diagnosis,
+        treatment: formData.treatment,
         medications: formData.medications
           .split(",")
           .map((x) => x.trim())
-          .filter(Boolean)
+          .filter(Boolean),
+        vitals: formData.vitals,
+        notes: formData.notes,
+        followUpDate: formData.followUpDate
       };
 
-      const res = await fetch(
-        `${API_BASE_URL}/patients/${patientId}/medical-records`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(cleanPayload)
-        }
-      );
+      const res = await api.post("/medical-records", cleanPayload);
 
-      if (res.ok) {
+      if (res.status === 201) {
         alert("Medical record added!");
         setShowForm(false);
 
@@ -118,25 +106,21 @@ const MedicalRecords = ({ embedded = false }) => {
         });
 
         fetchMedicalRecords();
-      } else {
-        const errData = await res.json();
-        alert(errData.error || "Error adding medical record");
       }
     } catch (err) {
       console.error("Submit error:", err);
-      alert("Submit failed.");
+      alert(err.response?.data?.error || "Failed to add record");
     } finally {
       setLoading(false);
     }
   };
 
-  // ----------------------------- HANDLE INPUT -----------------------------
+  // ---------------------- INPUT CHANGE ----------------------
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     if (name.startsWith("vitals.")) {
       const key = name.split(".")[1];
-
       setFormData((prev) => ({
         ...prev,
         vitals: { ...prev.vitals, [key]: value }
@@ -146,14 +130,13 @@ const MedicalRecords = ({ embedded = false }) => {
     }
   };
 
-  // ----------------------------- BMI CALC -----------------------------
+  // ---------------------- BMI CALC ----------------------
   const calculateBMI = () => {
     const h = parseFloat(formData.vitals.height);
     const w = parseFloat(formData.vitals.weight);
 
     if (h > 0 && w > 0) {
       const bmi = (w / ((h / 100) ** 2)).toFixed(1);
-
       setFormData((prev) => ({
         ...prev,
         vitals: { ...prev.vitals, bmi }
@@ -161,19 +144,13 @@ const MedicalRecords = ({ embedded = false }) => {
     }
   };
 
-  // ----------------------------- LOADING -----------------------------
   if (loading && medicalRecords.length === 0) {
     return <div className="loading">Loading medical records...</div>;
   }
 
-  // =====================================================================
-  // ----------------------------- RENDER -----------------------------
-  // =====================================================================
-
   return (
     <div className="medical-records">
-      {/* ------- HEADER ------- */}
-      {!embedded && (
+      {!embeddedPatientId && (
         <div className="page-header">
           <h1>Medical Records</h1>
           <p>Patient ID: {patientId}</p>
@@ -184,23 +161,18 @@ const MedicalRecords = ({ embedded = false }) => {
         </div>
       )}
 
-      {/* ------- ADD BUTTON ------- */}
       <div style={{ marginBottom: "20px" }}>
-        <button
-          className="primary-button"
-          onClick={() => setShowForm(!showForm)}
-        >
+        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
           {showForm ? "✖ Cancel" : "➕ Add Medical Record"}
         </button>
       </div>
 
-      {/* ------- ADD FORM ------- */}
       {showForm && (
         <div className="card medical-record-form">
           <h3>Add Medical Record</h3>
 
           <form onSubmit={handleSubmit}>
-            {/* ---------------- GENERAL SECTION ---------------- */}
+            {/* General */}
             <div className="form-row">
               <div className="form-group">
                 <label>Visit Date *</label>
@@ -226,7 +198,7 @@ const MedicalRecords = ({ embedded = false }) => {
               </div>
             </div>
 
-            {/* ---------------- DIAGNOSIS + TREATMENT ---------------- */}
+            {/* Diagnosis + Treatment */}
             <div className="form-row">
               <div className="form-group">
                 <label>Diagnosis</label>
@@ -249,7 +221,7 @@ const MedicalRecords = ({ embedded = false }) => {
               </div>
             </div>
 
-            {/* ---------------- MEDICATIONS ---------------- */}
+            {/* Medications */}
             <div className="form-group">
               <label>Medications</label>
               <input
@@ -261,7 +233,7 @@ const MedicalRecords = ({ embedded = false }) => {
               />
             </div>
 
-            {/* ---------------- VITALS ---------------- */}
+            {/* Vitals */}
             <div className="vitals-section">
               <h4>Vitals</h4>
 
@@ -271,9 +243,9 @@ const MedicalRecords = ({ embedded = false }) => {
                   <input
                     type="text"
                     name="vitals.bloodPressure"
-                    placeholder="120/80"
                     value={formData.vitals.bloodPressure}
                     onChange={handleChange}
+                    placeholder="120/80"
                   />
                 </div>
 
@@ -313,7 +285,7 @@ const MedicalRecords = ({ embedded = false }) => {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>O2 Saturation (%)</label>
+                  <label>Oxygen Saturation (%)</label>
                   <input
                     type="number"
                     name="vitals.oxygenSaturation"
@@ -361,7 +333,7 @@ const MedicalRecords = ({ embedded = false }) => {
               </div>
             </div>
 
-            {/* ---------------- NOTES + FOLLOWUP ---------------- */}
+            {/* Notes + Follow-up */}
             <div className="form-group">
               <label>Clinical Notes</label>
               <textarea
@@ -399,7 +371,7 @@ const MedicalRecords = ({ embedded = false }) => {
         </div>
       )}
 
-      {/* ------- RECORD LIST ------- */}
+      {/* --------- LIST -------- */}
       <div className="medical-records-list mt-4">
         <h2 className="mb-3">
           Medical History ({medicalRecords.length} records)
@@ -413,39 +385,15 @@ const MedicalRecords = ({ embedded = false }) => {
               <div key={r.id} className="card medical-record-card">
                 <h3>Visit: {new Date(r.visitDate).toLocaleDateString()}</h3>
 
-                <p>
-                  <strong>Symptoms:</strong> {r.symptoms.join(", ")}
-                </p>
-
-                {r.diagnosis && (
-                  <p>
-                    <strong>Diagnosis:</strong> {r.diagnosis}
-                  </p>
+                <p><strong>Symptoms:</strong> {r.symptoms.join(", ")}</p>
+                {r.diagnosis && <p><strong>Diagnosis:</strong> {r.diagnosis}</p>}
+                {r.treatment && <p><strong>Treatment:</strong> {r.treatment}</p>}
+                {r.medications?.length > 0 && (
+                  <p><strong>Medications:</strong> {r.medications.join(", ")}</p>
                 )}
-
-                {r.treatment && (
-                  <p>
-                    <strong>Treatment:</strong> {r.treatment}
-                  </p>
-                )}
-
-                {r.medications.length > 0 && (
-                  <p>
-                    <strong>Medications:</strong> {r.medications.join(", ")}
-                  </p>
-                )}
-
-                {r.notes && (
-                  <p>
-                    <strong>Notes:</strong> {r.notes}
-                  </p>
-                )}
-
+                {r.notes && <p><strong>Notes:</strong> {r.notes}</p>}
                 {r.followUpDate && (
-                  <p>
-                    <strong>Follow-up:</strong>{" "}
-                    {new Date(r.followUpDate).toLocaleDateString()}
-                  </p>
+                  <p><strong>Follow-up:</strong> {new Date(r.followUpDate).toLocaleDateString()}</p>
                 )}
 
                 <small className="text-muted">
