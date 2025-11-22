@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-
-const API_BASE_URL = "http://13.127.5.209:3001/api";
+import { appointmentsAPI } from "../services/api";
 
 const AppointmentManagement = () => {
   const { token } = useAuth();
+
   const [showForm, setShowForm] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,69 +20,60 @@ const AppointmentManagement = () => {
     fetchAppointments();
   }, []);
 
+  // ----------------------- FETCH APPOINTMENTS -----------------------
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/appointments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAppointments(data.appointments || []);
-      } else {
-        console.error("Failed to load appointments");
-      }
-    } catch (error) {
-      console.error("Error:", error);
+      const res = await appointmentsAPI.getAll();
+      setAppointments(res.data.appointments || []);
+    } catch (err) {
+      console.error("Error loading appointments:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  // ----------------------- CREATE APPOINTMENT -----------------------
   const handleCreateAppointment = async (e) => {
     e.preventDefault();
     setLoading(true);
+
     try {
-      const response = await fetch(`${API_BASE_URL}/appointments`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      const res = await appointmentsAPI.create(formData);
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (res.status === 201 || res.data.success) {
         alert("Appointment scheduled successfully!");
         setShowForm(false);
+
         setFormData({
           patientId: "",
           appointmentDate: "",
           reason: "",
           notes: "",
         });
+
         fetchAppointments();
-      } else {
-        alert(data.error || "Failed to schedule appointment");
       }
     } catch (err) {
-      console.error(err);
-      alert("Error scheduling appointment.");
+      console.error("Create appointment error:", err);
+      alert(err.response?.data?.error || "Failed to schedule appointment.");
     } finally {
       setLoading(false);
     }
   };
 
+  // ----------------------- FILTERS -----------------------
+  const now = new Date();
+
   const upcoming = appointments.filter(
-    (apt) => new Date(apt.appointmentDate) >= new Date()
-  );
-  const past = appointments.filter(
-    (apt) => new Date(apt.appointmentDate) < new Date()
+    (apt) => new Date(apt.appointmentDate) >= now
   );
 
+  const past = appointments.filter(
+    (apt) => new Date(apt.appointmentDate) < now
+  );
+
+  // ----------------------- RENDER -----------------------
   return (
     <div className="appointment-management">
       <div className="page-header">
@@ -97,6 +88,7 @@ const AppointmentManagement = () => {
         {showForm ? "✖ Close Form" : "➕ Schedule New Appointment"}
       </button>
 
+      {/* ----------------------- FORM ----------------------- */}
       {showForm && (
         <div className="appointment-form card">
           <h3>Schedule Appointment</h3>
@@ -158,7 +150,7 @@ const AppointmentManagement = () => {
         </div>
       )}
 
-      {/* LIST SECTION */}
+      {/* ----------------------- LISTS ----------------------- */}
       <div className="appointments-list">
         <div className="section-header">
           <h2>Upcoming Appointments</h2>
