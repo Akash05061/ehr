@@ -1,17 +1,17 @@
-import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate, Link } from "react-router-dom";
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    confirmPassword: '',
-    firstName: '',
-    lastName: '',
-    email: '',
-    role: 'staff'
+    username: "",
+    password: "",
+    confirmPassword: "",
+    firstName: "",
+    lastName: "",
+    email: "",
   });
+
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const { register } = useAuth();
@@ -21,15 +21,15 @@ const Register = () => {
     const newErrors = {};
 
     if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password must be at least 6 characters";
     }
 
     if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.confirmPassword = "Passwords do not match";
     }
 
-    if (!formData.email.includes('@')) {
-      newErrors.email = 'Please enter a valid email';
+    if (!formData.email.includes("@")) {
+      newErrors.email = "Invalid email address";
     }
 
     setErrors(newErrors);
@@ -38,60 +38,45 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
-    setErrors({});
 
     const { confirmPassword, ...submitData } = formData;
 
+    // Default role = "staff"
+    submitData.role = "staff";
+
     const result = await register(submitData);
-    
+
     if (result.success) {
-      navigate('/dashboard');
+      navigate("/dashboard");
     } else {
       setErrors({ submit: result.error });
     }
-    
+
     setLoading(false);
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    
-    // Clear error when user starts typing
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+
     if (errors[e.target.name]) {
-      setErrors({
-        ...errors,
-        [e.target.name]: ''
-      });
+      setErrors({ ...errors, [e.target.name]: "" });
     }
   };
-
-  const roleOptions = [
-    { value: 'staff', label: 'Staff' },
-    { value: 'doctor', label: 'Doctor' },
-    { value: 'receptionist', label: 'Receptionist' },
-    { value: 'lab_technician', label: 'Lab Technician' }
-  ];
 
   return (
     <div className="auth-container">
       <div className="auth-card">
         <h2>Create Account</h2>
+
         <form onSubmit={handleSubmit}>
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="firstName">First Name *</label>
+              <label>First Name *</label>
               <input
                 type="text"
-                id="firstName"
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleChange}
@@ -101,10 +86,9 @@ const Register = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="lastName">Last Name *</label>
+              <label>Last Name *</label>
               <input
                 type="text"
-                id="lastName"
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleChange}
@@ -115,10 +99,9 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="username">Username *</label>
+            <label>Username *</label>
             <input
               type="text"
-              id="username"
               name="username"
               value={formData.username}
               onChange={handleChange}
@@ -128,10 +111,9 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email *</label>
+            <label>Email *</label>
             <input
               type="email"
-              id="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
@@ -141,29 +123,11 @@ const Register = () => {
             {errors.email && <span className="error">{errors.email}</span>}
           </div>
 
-          <div className="form-group">
-            <label htmlFor="role">Role</label>
-            <select
-              id="role"
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              disabled={loading}
-            >
-              {roleOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="password">Password *</label>
+              <label>Password *</label>
               <input
                 type="password"
-                id="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
@@ -174,32 +138,25 @@ const Register = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="confirmPassword">Confirm Password *</label>
+              <label>Confirm Password *</label>
               <input
                 type="password"
-                id="confirmPassword"
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 required
                 disabled={loading}
               />
-              {errors.confirmPassword && <span className="error">{errors.confirmPassword}</span>}
+              {errors.confirmPassword && (
+                <span className="error">{errors.confirmPassword}</span>
+              )}
             </div>
           </div>
 
-          {errors.submit && (
-            <div className="error-message">
-              {errors.submit}
-            </div>
-          )}
+          {errors.submit && <div className="error-message">{errors.submit}</div>}
 
-          <button 
-            type="submit" 
-            className="auth-button"
-            disabled={loading}
-          >
-            {loading ? 'Creating Account...' : 'Create Account'}
+          <button className="auth-button" disabled={loading} type="submit">
+            {loading ? "Creating Account..." : "Create Account"}
           </button>
         </form>
 
