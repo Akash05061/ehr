@@ -37,14 +37,12 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
     if (patientId) fetchMedicalRecords();
   }, [patientId]);
 
-  // ---------------------- FETCH RECORDS ----------------------
+  // -------------------------------- FETCH RECORDS ------------------------------
   const fetchMedicalRecords = async () => {
     try {
       setLoading(true);
 
-      const res = await api.get("/medical-records", {
-        params: { patientId }
-      });
+      const res = await api.get(`/patients/${patientId}/medical-records`);
 
       setMedicalRecords(res.data.medicalRecords || []);
     } catch (err) {
@@ -54,37 +52,32 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
     }
   };
 
-  // ---------------------- SUBMIT RECORD ----------------------
+  // -------------------------------- SUBMIT NEW RECORD -------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       const cleanPayload = {
-        patientId,
         visitDate: formData.visitDate,
-        symptoms: formData.symptoms
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
+        symptoms: formData.symptoms.split(",").map(s => s.trim()),
         diagnosis: formData.diagnosis,
         treatment: formData.treatment,
-        medications: formData.medications
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
+        medications: formData.medications.split(",").map(s => s.trim()),
         vitals: formData.vitals,
         notes: formData.notes,
         followUpDate: formData.followUpDate
       };
 
-      const res = await api.post("/medical-records", cleanPayload);
+      const res = await api.post(
+        `/patients/${patientId}/medical-records`,
+        cleanPayload
+      );
 
       if (res.status === 201) {
         alert("Medical record added!");
         setShowForm(false);
 
-        // Reset form
         setFormData({
           visitDate: new Date().toISOString().split("T")[0],
           symptoms: "",
@@ -115,7 +108,7 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
     }
   };
 
-  // ---------------------- INPUT CHANGE ----------------------
+  // -------------------------------- HANDLE INPUTS -----------------------------
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -130,7 +123,7 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
     }
   };
 
-  // ---------------------- BMI CALC ----------------------
+  // -------------------------------- BMI CALC ----------------------------------
   const calculateBMI = () => {
     const h = parseFloat(formData.vitals.height);
     const w = parseFloat(formData.vitals.weight);
@@ -161,18 +154,22 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
         </div>
       )}
 
-      <div style={{ marginBottom: "20px" }}>
-        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
-          {showForm ? "✖ Cancel" : "➕ Add Medical Record"}
-        </button>
-      </div>
+      <button
+        className="primary-button"
+        style={{ marginBottom: "20px" }}
+        onClick={() => setShowForm(!showForm)}
+      >
+        {showForm ? "✖ Cancel" : "➕ Add Medical Record"}
+      </button>
 
+      {/* FORM UI ------------------------------------------------ */}
       {showForm && (
         <div className="card medical-record-form">
           <h3>Add Medical Record</h3>
 
           <form onSubmit={handleSubmit}>
-            {/* General */}
+
+            {/* Visit + Symptoms */}
             <div className="form-row">
               <div className="form-group">
                 <label>Visit Date *</label>
@@ -211,7 +208,7 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
               </div>
 
               <div className="form-group">
-                <label>Treatment Plan</label>
+                <label>Treatment</label>
                 <input
                   type="text"
                   name="treatment"
@@ -233,7 +230,7 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
               />
             </div>
 
-            {/* Vitals */}
+            {/* Vitals Section */}
             <div className="vitals-section">
               <h4>Vitals</h4>
 
@@ -243,9 +240,9 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
                   <input
                     type="text"
                     name="vitals.bloodPressure"
+                    placeholder="120/80"
                     value={formData.vitals.bloodPressure}
                     onChange={handleChange}
-                    placeholder="120/80"
                   />
                 </div>
 
@@ -256,11 +253,11 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
                     name="vitals.temperature"
                     value={formData.vitals.temperature}
                     onChange={handleChange}
-                    step="0.1"
                   />
                 </div>
               </div>
 
+              {/* More vitals */}
               <div className="form-row">
                 <div className="form-group">
                   <label>Heart Rate</label>
@@ -283,19 +280,8 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
                 </div>
               </div>
 
+              {/* Height & Weight */}
               <div className="form-row">
-                <div className="form-group">
-                  <label>Oxygen Saturation (%)</label>
-                  <input
-                    type="number"
-                    name="vitals.oxygenSaturation"
-                    value={formData.vitals.oxygenSaturation}
-                    onChange={handleChange}
-                    min="0"
-                    max="100"
-                  />
-                </div>
-
                 <div className="form-group">
                   <label>Height (cm)</label>
                   <input
@@ -306,9 +292,7 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
                     onBlur={calculateBMI}
                   />
                 </div>
-              </div>
 
-              <div className="form-row">
                 <div className="form-group">
                   <label>Weight (kg)</label>
                   <input
@@ -319,7 +303,10 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
                     onBlur={calculateBMI}
                   />
                 </div>
+              </div>
 
+              {/* BMI */}
+              <div className="form-row">
                 <div className="form-group">
                   <label>BMI</label>
                   <input
@@ -333,7 +320,7 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
               </div>
             </div>
 
-            {/* Notes + Follow-up */}
+            {/* Notes */}
             <div className="form-group">
               <label>Clinical Notes</label>
               <textarea
@@ -344,6 +331,7 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
               />
             </div>
 
+            {/* Follow-up */}
             <div className="form-group">
               <label>Follow-up Date</label>
               <input
@@ -358,7 +346,6 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
               <button className="primary-button" type="submit">
                 ➕ Add Record
               </button>
-
               <button
                 type="button"
                 className="secondary-button"
@@ -371,7 +358,7 @@ const MedicalRecords = ({ patientId: embeddedPatientId = null }) => {
         </div>
       )}
 
-      {/* --------- LIST -------- */}
+      {/* ----------------- RECORD LIST ------------------ */}
       <div className="medical-records-list mt-4">
         <h2 className="mb-3">
           Medical History ({medicalRecords.length} records)
