@@ -5,29 +5,39 @@ import { patientsAPI } from "../services/api";
 export default function PatientSearch() {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // 🔥 Auto-load all patients on page load
+  // Load all patients at page load
   useEffect(() => {
-    loadAllPatients();
+    loadPatients();
   }, []);
 
-  const loadAllPatients = async () => {
+  // 🔥 Fetch patients (with search or all)
+  const loadPatients = async () => {
+    setLoading(true);
     try {
-      const res = await patientsAPI.getAll();
+      const res = await patientsAPI.getAll({
+        search: search.trim(),
+        page: 1,
+        limit: 50
+      });
+
+      // SQL backend returns: { success, patients, total }
       setResults(res.data.patients || []);
-    } catch (error) {
-      console.error("Error loading patients:", error);
+    } catch (err) {
+      console.error("Error loading patients:", err);
     }
+    setLoading(false);
   };
 
+  // Search button click
   const runSearch = async () => {
-    if (search.trim() === "") {
-      // If search is empty → load all patients
-      return loadAllPatients();
-    }
+    await loadPatients();
+  };
 
-    const res = await patientsAPI.search(search);
-    setResults(res.data.patients || []);
+  // Search when pressing Enter
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter") runSearch();
   };
 
   return (
@@ -37,14 +47,18 @@ export default function PatientSearch() {
       <div className="search-input-group">
         <input
           type="text"
-          placeholder="Search by name, phone..."
+          placeholder="Search by name, phone, email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={handleKeyPress}
         />
+
         <button onClick={runSearch}>Search</button>
       </div>
 
-      {results.length === 0 && <p>No patients found.</p>}
+      {loading && <p>Loading patients...</p>}
+
+      {!loading && results.length === 0 && <p>No patients found.</p>}
 
       <div className="patients-grid">
         {results.map((p) => (
@@ -52,6 +66,7 @@ export default function PatientSearch() {
             <h4>{p.firstName} {p.lastName}</h4>
             <p>ID: {p.id}</p>
             <p>Phone: {p.phone}</p>
+
             <Link className="view-btn" to={`/patients/${p.id}`}>
               View Profile
             </Link>
