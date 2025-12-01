@@ -21,9 +21,7 @@ if (!BUCKET_NAME) {
 
 class S3Service {
 
-  /** -------------------------------------------
-   * Upload file to S3
-   * ------------------------------------------- */
+  /** Upload file to S3 */
   async uploadFile(patientId, file, fileType) {
     try {
       if (!file) {
@@ -62,9 +60,7 @@ class S3Service {
     }
   }
 
-  /** -------------------------------------------
-   * Generate Signed URL
-   * ------------------------------------------- */
+  /** Generate signed URL */
   async getSignedUrl(fileKey, expiresIn = 3600) {
     try {
       const params = {
@@ -74,36 +70,28 @@ class S3Service {
       };
 
       const signedUrl = await s3.getSignedUrlPromise("getObject", params);
-
       return { success: true, signedUrl };
+
     } catch (error) {
       console.error("❌ S3 Signed URL Error:", error.message);
       return { success: false, error: error.message };
     }
   }
 
-  /** -------------------------------------------
-   * Delete file from S3
-   * ------------------------------------------- */
+  /** Delete file */
   async deleteFile(fileKey) {
     try {
-      const params = {
-        Bucket: BUCKET_NAME,
-        Key: fileKey
-      };
-
+      const params = { Bucket: BUCKET_NAME, Key: fileKey };
       await s3.deleteObject(params).promise();
-
       return { success: true };
+
     } catch (error) {
       console.error("❌ S3 Delete Error:", error.message);
       return { success: false, error: error.message };
     }
   }
 
-  /** -------------------------------------------
-   * List all files for a patient
-   * ------------------------------------------- */
+  /** List files for a patient */
   async listPatientFiles(patientId) {
     try {
       const prefix = `patients/${patientId}/`;
@@ -122,6 +110,7 @@ class S3Service {
       }));
 
       return { success: true, files };
+
     } catch (error) {
       console.error("❌ S3 List Error:", error.message);
       return { success: false, error: error.message };
