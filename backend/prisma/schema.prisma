@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  firstName String
+  lastName  String
+  email     String   @unique
+  role      Role     @default(STAFF)
+  createdAt DateTime @default(now())
+
+  appointments  Appointment[] @relation("DoctorAppointments")
+  prescriptions Prescription[] @relation("DoctorPrescriptions")
+  medicalRecords MedicalRecord[] @relation("DoctorMedicalRecords")
+  labResults    LabResult[] @relation("LabCreatedBy")
+  files         MedicalFile[] @relation("FileUploadedBy")
+}
+
+enum Role {
+  ADMIN
+  DOCTOR
+  RECEPTIONIST
+  STAFF
+  LAB_TECHNICIAN
+}
+
+model Patient {
+  id              Int      @id @default(autoincrement())
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime
+  gender          String
+  phone           String
+  email           String?
+  address         String?
+  emergencyContact String?
+  bloodType       String?
+  insuranceInfo   String?
+  medicalHistory  String?
+  createdAt       DateTime @default(now())
+
+  appointments   Appointment[]
+  prescriptions  Prescription[]
+  labResults     LabResult[]
+  medicalRecords MedicalRecord[]
+  files          MedicalFile[]
+}
+
+model Appointment {
+  id             Int      @id @default(autoincrement())
+  appointmentDate DateTime
+  reason          String?
+  notes           String?
+  status          AppointmentStatus @default(SCHEDULED)
+  createdAt       DateTime @default(now())
+
+  patientId Int
+  doctorId  Int
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User    @relation("DoctorAppointments", fields: [doctorId], references: [id])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model Prescription {
+  id           Int      @id @default(autoincrement())
+  medicationName String
+  dosage        String
+  frequency     String?
+  duration      String?
+  instructions  String?
+  prescribedDate DateTime @default(now())
+  status        String? @default("active")
+
+  patientId Int
+  doctorId  Int
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User    @relation("DoctorPrescriptions", fields: [doctorId], references: [id])
+}
+
+model MedicalRecord {
+  id        Int      @id @default(autoincrement())
+  visitDate DateTime
+  symptoms  String
+  diagnosis String?
+  treatment String?
+  medications String?
+  notes     String?
+  followUpDate DateTime?
+  createdAt DateTime @default(now())
+
+  bloodPressure   String?
+  temperature     Float?
+  heartRate       Int?
+  respiratoryRate Int?
+  oxygenSaturation Int?
+  height          Float?
+  weight          Float?
+  bmi             Float?
+
+  patientId Int
+  doctorId  Int
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User    @relation("DoctorMedicalRecords", fields: [doctorId], references: [id])
+}
+
+model LabResult {
+  id          Int      @id @default(autoincrement())
+  testName    String
+  result      String
+  normalRange String?
+  units       String?
+  notes       String?
+  testDate    DateTime @default(now())
+
+  patientId Int
+  createdBy Int
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  user    User    @relation("LabCreatedBy", fields: [createdBy], references: [id])
+}
+
+model MedicalFile {
+  id          Int      @id @default(autoincrement())
+  fileName    String
+  fileType    String?
+  description String?
+  s3Key       String
+  s3Url       String
+  uploadDate  DateTime @default(now())
+
+  patientId  Int
+  uploadedBy Int
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  user    User    @relation("FileUploadedBy", fields: [uploadedBy], references: [id])
+}
