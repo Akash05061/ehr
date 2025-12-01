@@ -20,18 +20,17 @@ export default function PatientForm() {
     e.preventDefault();
     setLoading(true);
 
+    // 🔥 SQL backend expects EXACT column names
     const payload = {
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      dateOfBirth: formData.dateOfBirth,
+      first_name: formData.firstName,
+      last_name: formData.lastName,
+      dob: formData.dateOfBirth,
       gender: formData.gender,
       phone: formData.phone,
       email: formData.email,
-      address: { city: formData.city },
-      bloodType: formData.bloodType,
-      emergencyContact: {},
-      insuranceInfo: {},
-      medicalHistory: formData.medicalHistory
+      city: formData.city,
+      blood_type: formData.bloodType,
+      medical_history: formData.medicalHistory
         ? formData.medicalHistory.split(",").map((x) => x.trim())
         : []
     };
@@ -39,19 +38,25 @@ export default function PatientForm() {
     try {
       const res = await patientsAPI.create(payload);
 
-      alert("Patient created successfully!");
+      if (res.data.success) {
+        alert("✅ Patient created successfully!");
 
-      setFormData({
-        firstName: "",
-        lastName: "",
-        dateOfBirth: "",
-        gender: "",
-        phone: "",
-        email: "",
-        city: "",
-        bloodType: "",
-        medicalHistory: ""
-      });
+        // Reset form
+        setFormData({
+          firstName: "",
+          lastName: "",
+          dateOfBirth: "",
+          gender: "",
+          phone: "",
+          email: "",
+          city: "",
+          bloodType: "",
+          medicalHistory: ""
+        });
+      } else {
+        alert("❌ Error: " + res.data.error);
+      }
+
     } catch (error) {
       console.error(error);
       alert("❌ Failed to create patient. Check backend logs.");
@@ -118,7 +123,7 @@ export default function PatientForm() {
           />
           <input
             name="email"
-            placeholder="Email"
+            placeholder="Email (optional)"
             value={formData.email}
             onChange={handleChange}
           />
