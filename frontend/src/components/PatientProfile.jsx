@@ -1,64 +1,38 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-
-import {
-  patientsAPI,
-  appointmentsAPI,
-  prescriptionsAPI,
-  analyticsAPI
-} from "../services/api";
-
-import api from "../services/api"; // axios instance
+import { patientsAPI } from "../services/api";
 
 const PatientProfile = () => {
   const { id: patientId } = useParams();
-  const { token } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
 
   const [patient, setPatient] = useState(null);
-  const [appointments, setAppointments] = useState([]);
-  const [prescriptions, setPrescriptions] = useState([]);
-  const [records, setRecords] = useState([]);
 
   useEffect(() => {
-    loadAllData();
+    loadPatientData();
   }, [patientId]);
 
-  const loadAllData = async () => {
-    setLoading(true);
+  const loadPatientData = async () => {
     try {
-      // Fetch patient
-      const pRes = await patientsAPI.getById(patientId);
+      setLoading(true);
 
-      // Fetch medical records (CORRECT ENDPOINT)
-      const rRes = await api.get(`/medical-records`, {
-        params: { patientId }
-      });
+      // ⭐ NEW SQL-based endpoint (returns full patient)
+      const res = await patientsAPI.getById(patientId);
 
-      // Fetch prescriptions
-      const prRes = await prescriptionsAPI.getByPatient(patientId);
-
-      // Fetch appointments
-      const aRes = await appointmentsAPI.getAll({ patientId });
-
-      setPatient(pRes.data);
-      setRecords(rRes.data.medicalRecords || []);
-      setPrescriptions(prRes.data.prescriptions || []);
-      setAppointments(aRes.data.appointments || []);
-
+      setPatient(res.data);
     } catch (err) {
-      console.error("Error loading patient data:", err);
+      console.error("Error loading patient:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading || !patient) {
-    return <div className="loading">Loading patient profile...</div>;
-  }
+  if (loading) return <div className="loading">Loading patient profile...</div>;
+  if (!patient) return <div className="loading">Patient not found</div>;
+
+  const { appointments, prescriptions, medicalRecords } = patient;
 
   return (
     <div className="patient-profile">
@@ -72,8 +46,9 @@ const PatientProfile = () => {
         </Link>
       </div>
 
+      {/* ---------------- TABS ---------------- */}
       <div className="tabs">
-        {["profile", "medical", "appointments", "prescriptions"].map((tab) => (
+        {["profile", "medical", "appointments", "prescriptions"].map(tab => (
           <button
             key={tab}
             className={`tab-button ${activeTab === tab ? "active" : ""}`}
@@ -87,24 +62,28 @@ const PatientProfile = () => {
         ))}
       </div>
 
-      <div className="content-area mt-3">
+      <div className="content-area">
 
+        {/* ---------------- PROFILE TAB ---------------- */}
         {activeTab === "profile" && (
           <div className="card">
             <h2>Basic Information</h2>
+
             <div className="list-item"><strong>Name:</strong> {patient.firstName} {patient.lastName}</div>
             <div className="list-item"><strong>DOB:</strong> {patient.dateOfBirth}</div>
             <div className="list-item"><strong>Gender:</strong> {patient.gender}</div>
             <div className="list-item"><strong>Phone:</strong> {patient.phone}</div>
             <div className="list-item"><strong>Email:</strong> {patient.email || "N/A"}</div>
+
             {patient.address && (
               <div className="list-item">
-                <strong>Address:</strong> {JSON.stringify(patient.address)}
+                <strong>Address:</strong> {patient.address.city || "N/A"}
               </div>
             )}
           </div>
         )}
 
+        {/* ---------------- MEDICAL RECORDS TAB ---------------- */}
         {activeTab === "medical" && (
           <div className="card">
             <h2>Medical Records</h2>
@@ -113,13 +92,13 @@ const PatientProfile = () => {
               ➕ Add Medical Record
             </Link>
 
-            {records.length === 0 ? (
+            {(!medicalRecords || medicalRecords.length === 0) ? (
               <p className="no-data mt-3">No records available.</p>
             ) : (
-              records.map((rec) => (
+              medicalRecords.map((rec) => (
                 <div key={rec.id} className="list-item mt-3">
-                  <strong>Visit:</strong> {new Date(rec.visitDate).toLocaleDateString()} <br />
-                  <strong>Symptoms:</strong> {rec.symptoms.join(", ")}
+                  <strong>Visit:</strong> {new Date(rec.visitDate).toLocaleDateString()}<br />
+                  <strong>Symptoms:</strong> {rec.symptoms?.join(", ")}
                   {rec.diagnosis && <p><strong>Diagnosis:</strong> {rec.diagnosis}</p>}
                   {rec.treatment && <p><strong>Treatment:</strong> {rec.treatment}</p>}
                 </div>
@@ -128,19 +107,18 @@ const PatientProfile = () => {
           </div>
         )}
 
+        {/* ---------------- APPOINTMENTS TAB ---------------- */}
         {activeTab === "appointments" && (
           <div className="card">
             <h2>Appointments</h2>
 
-            {appointments.length === 0 ? (
+            {(!appointments || appointments.length === 0) ? (
               <p className="no-data">No appointments found.</p>
             ) : (
               appointments.map((apt) => (
-                <div className="list-item" key={apt.id}>
-                  <strong>{new Date(apt.appointmentDate).toLocaleString()}</strong>
-                  <br />
-                  Reason: {apt.reason}
-                  <br />
+                <div key={apt.id} className="list-item">
+                  <strong>{new Date(apt.appointmentDate).toLocaleString()}</strong><br />
+                  Reason: {apt.reason}<br />
                   <span className={`status-badge ${apt.status}`}>{apt.status}</span>
                 </div>
               ))
@@ -148,19 +126,18 @@ const PatientProfile = () => {
           </div>
         )}
 
+        {/* ---------------- PRESCRIPTIONS TAB ---------------- */}
         {activeTab === "prescriptions" && (
           <div className="card">
             <h2>Prescriptions</h2>
 
-            {prescriptions.length === 0 ? (
+            {(!prescriptions || prescriptions.length === 0) ? (
               <p className="no-data">No prescriptions found.</p>
             ) : (
               prescriptions.map((p) => (
-                <div className="list-item" key={p.id}>
-                  <strong>{p.medicationName}</strong> — {p.dosage}
-                  <br />
-                  Instructions: {p.instructions || "None"}
-                  <br />
+                <div key={p.id} className="list-item">
+                  <strong>{p.medicationName}</strong> — {p.dosage}<br />
+                  Instructions: {p.instructions || "None"}<br />
                   <span className="status-badge scheduled">Active</span>
                 </div>
               ))
