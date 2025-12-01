@@ -1,119 +1,111 @@
-// s3-service.js
-const AWS = require('aws-sdk');
+// ================== IMPORTS ==================
+const AWS = require("aws-sdk");
+require("dotenv").config();
 
-// -------------------------
-// AWS CONFIGURATION
-// -------------------------
+// ================== AWS CONFIG ==================
 AWS.config.update({
-  region: process.env.AWS_REGION || 'ap-south-1',
+  region: process.env.AWS_REGION || "ap-south-1",
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
 });
 
-// S3 Client
 const s3 = new AWS.S3();
+const BUCKET = process.env.S3_BUCKET_NAME;
 
-// Bucket name
-const BUCKET_NAME = process.env.S3_BUCKET_NAME;
-if (!BUCKET_NAME) {
-  console.error("❌ ERROR: S3_BUCKET_NAME is missing in .env");
+if (!BUCKET) {
+  console.error("❌ ERROR: S3_BUCKET_NAME missing in .env");
 }
 
+// ================== CLASS ======================
 class S3Service {
-
-  /** Upload file to S3 */
-  async uploadFile(patientId, file, fileType) {
+  
+  // ---------- UPLOAD FILE ----------
+  async uploadFile(patientId, file, fileType = "medical") {
     try {
       if (!file) {
-        return { success: false, error: "No file provided" };
+        return { success: false, error: "No file uploaded" };
       }
 
       const key = `patients/${patientId}/${Date.now()}-${file.originalname}`;
 
       const params = {
-        Bucket: BUCKET_NAME,
+        Bucket: BUCKET,
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
         Metadata: {
           patientId: String(patientId),
-          fileType: fileType || "medical",
-          uploadedBy: "ehr-system"
+          fileType: fileType,
         }
       };
 
-      console.log(`📤 Uploading file to S3: ${key}`);
+      console.log(`📤 Uploading to S3 → ${key}`);
 
-      const result = await s3.upload(params).promise();
+      const data = await s3.upload(params).promise();
 
       return {
         success: true,
-        key: result.Key,
-        url: result.Location,
-        size: file.size,
-        mimeType: file.mimetype
+        key: data.Key,
+        url: data.Location
       };
 
-    } catch (error) {
-      console.error("❌ S3 Upload Error:", error.message);
-      return { success: false, error: error.message };
+    } catch (err) {
+      console.error("❌ S3 Upload Error:", err);
+      return { success: false, error: err.message };
     }
   }
 
-  /** Generate signed URL */
-  async getSignedUrl(fileKey, expiresIn = 3600) {
+  // ---------- SIGNED URL ----------
+  async getSignedUrl(key, expiresIn = 3600) {
     try {
       const params = {
-        Bucket: BUCKET_NAME,
-        Key: fileKey,
+        Bucket: BUCKET,
+        Key: key,
         Expires: expiresIn
       };
 
-      const signedUrl = await s3.getSignedUrlPromise("getObject", params);
-      return { success: true, signedUrl };
+      const url = await s3.getSignedUrlPromise("getObject", params);
+      return { success: true, url };
 
-    } catch (error) {
-      console.error("❌ S3 Signed URL Error:", error.message);
-      return { success: false, error: error.message };
+    } catch (err) {
+      console.error("❌ Signed URL Error:", err);
+      return { success: false, error: err.message };
     }
   }
 
-  /** Delete file */
-  async deleteFile(fileKey) {
+  // ---------- DELETE FILE ----------
+  async deleteFile(key) {
     try {
-      const params = { Bucket: BUCKET_NAME, Key: fileKey };
-      await s3.deleteObject(params).promise();
+      await s3.deleteObject({ Bucket: BUCKET, Key: key }).promise();
       return { success: true };
 
-    } catch (error) {
-      console.error("❌ S3 Delete Error:", error.message);
-      return { success: false, error: error.message };
+    } catch (err) {
+      console.error("❌ Delete Error:", err);
+      return { success: false, error: err.message };
     }
   }
 
-  /** List files for a patient */
+  // ---------- LIST FILES ----------
   async listPatientFiles(patientId) {
     try {
       const prefix = `patients/${patientId}/`;
 
-      const params = {
-        Bucket: BUCKET_NAME,
+      const data = await s3.listObjectsV2({
+        Bucket: BUCKET,
         Prefix: prefix
-      };
+      }).promise();
 
-      const result = await s3.listObjectsV2(params).promise();
-
-      const files = result.Contents.map(file => ({
-        key: file.Key,
-        size: file.Size,
-        lastModified: file.LastModified
+      const files = data.Contents.map(item => ({
+        key: item.Key,
+        size: item.Size,
+        lastModified: item.LastModified
       }));
 
       return { success: true, files };
 
-    } catch (error) {
-      console.error("❌ S3 List Error:", error.message);
-      return { success: false, error: error.message };
+    } catch (err) {
+      console.error("❌ List Files Error:", err);
+      return { success: false, error: err.message };
     }
   }
 }
