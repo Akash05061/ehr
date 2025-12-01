@@ -1,127 +1,130 @@
-import axios from 'axios';
+import axios from "axios";
 
-// Create axios instance with base configuration
+// ===========================
+// CONFIGURE BACKEND URL
+// ===========================
+export const API_BASE_URL = "http://YOUR_EC2_PUBLIC_IP:3001/api";
+
+// Create axios instance
 const api = axios.create({
-  baseURL: 'http://35.154.95.223:3001/api',   // ✅ Correct backend IP
-  timeout: 10000,
+  baseURL: API_BASE_URL,
+  timeout: 15000,
 });
 
-// Request interceptor to add auth token
+// ===========================
+// REQUEST INTERCEPTOR
+// ===========================
 api.interceptors.request.use(
   (config) => {
-    console.log('🚀 API Request:', config.method?.toUpperCase(), config.url);
-    console.log('📦 Request Headers:', config.headers);
-    console.log('📤 Request Data:', config.data);
-    
-    const token = localStorage.getItem('token');
-    console.log('🔑 Token from localStorage:', token ? 'Present' : 'Missing');
-    
+    const token = localStorage.getItem("token");
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('✅ Added Authorization header');
-    } else {
-      console.log('⚠️ No token found for request');
     }
-    
+
+    console.log("➡️ API REQUEST:", config.method?.toUpperCase(), config.url);
     return config;
   },
   (error) => {
-    console.log('❌ API Request Interceptor Error:', error);
-    console.log('🔍 Request Error Details:', {
-      message: error.message,
-      config: error.config
-    });
+    console.error("❌ API Request Error:", error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor for error handling
+// ===========================
+// RESPONSE INTERCEPTOR
+// ===========================
 api.interceptors.response.use(
   (response) => {
-    console.log('✅ API Success:', response.status, response.config.url);
-    console.log('📥 Response Data:', response.data);
-    console.log('📋 Response Headers:', response.headers);
+    console.log("✅ API RESPONSE:", response.config.url, response.status);
     return response;
   },
   (error) => {
-    console.log('❌ API Response Error:');
-    console.log('🔍 Error URL:', error.config?.url);
-    console.log('🔍 Error Method:', error.config?.method?.toUpperCase());
-    console.log('🔍 Status Code:', error.response?.status);
-    console.log('🔍 Error Message:', error.message);
-    console.log('🔍 Response Data:', error.response?.data);
-    console.log('🔍 Response Headers:', error.response?.headers);
-    
-    if (!error.response) {
-      console.log('🌐 Network Error - No response received');
-      console.log('Possible CORS issue or server unreachable');
-    }
-    
+    console.error("❌ API ERROR:", {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+
+    // Auto-logout when token expires
     if (error.response?.status === 401) {
-      console.log('🔐 401 Unauthorized - Removing token and redirecting to login');
-      localStorage.removeItem('token');
-      localStorage.removeItem('userData');
-      window.location.href = '/login';
+      localStorage.removeItem("token");
+      localStorage.removeItem("userData");
+      window.location.href = "/login";
     }
-    
+
     return Promise.reject(error);
   }
 );
 
-// Authentication API
+// ===========================
+// AUTH API
+// ===========================
 export const authAPI = {
-  login: (credentials) => {
-    console.log('🔐 Login API call with credentials:', credentials);
-    return api.post('/auth/login', credentials);
-  },
-  register: (userData) => api.post('/auth/register', userData),
+  login: (data) => api.post("/auth/login", data),
+  register: (data) => api.post("/auth/register", data),
 };
 
-// Patients API
+// ===========================
+// PATIENT API
+// ===========================
 export const patientsAPI = {
-  getAll: (params = {}) => api.get('/patients', { params }),
+  getAll: (params = {}) => api.get("/patients", { params }),
   getById: (id) => api.get(`/patients/${id}`),
-  create: (patientData) => api.post('/patients', patientData),
-  update: (id, patientData) => api.put(`/patients/${id}`, patientData),
-  search: (searchTerm) => api.get('/patients', { params: { search: searchTerm } }),
+  create: (data) => api.post("/patients", data),
+  update: (id, data) => api.put(`/patients/${id}`, data),
+  search: (term) => api.get("/patients", { params: { search: term } }),
 };
 
-// Appointments API
+// ===========================
+// APPOINTMENTS API
+// ===========================
 export const appointmentsAPI = {
-  getAll: (params = {}) => api.get('/appointments', { params }),
-  create: (appointmentData) => api.post('/appointments', appointmentData),
-  updateStatus: (id, status) => api.put(`/appointments/${id}/status`, { status }),
+  getAll: (params = {}) => api.get("/appointments", { params }),
+  create: (data) => api.post("/appointments", data),
+  updateStatus: (id, status) =>
+    api.put(`/appointments/${id}/status`, { status }),
 };
 
-// Prescriptions API
+// ===========================
+// PRESCRIPTIONS API
+// ===========================
 export const prescriptionsAPI = {
-  create: (prescriptionData) => api.post('/prescriptions', prescriptionData),
-  getByPatient: (patientId) => api.get(`/patients/${patientId}/prescriptions`),
+  create: (data) => api.post("/prescriptions", data),
+  getByPatient: (patientId) =>
+    api.get(`/patients/${patientId}/prescriptions`),
 };
 
-// Lab Results API
+// ===========================
+// LAB RESULTS API
+// ===========================
 export const labResultsAPI = {
-  create: (labData) => api.post('/lab-results', labData),
+  create: (data) => api.post("/lab-results", data),
 };
 
-// Files API
+// ===========================
+// FILE UPLOAD API
+// ===========================
 export const filesAPI = {
   upload: (patientId, fileData) => {
     const formData = new FormData();
-    formData.append('file', fileData.file);
-    formData.append('fileType', fileData.fileType);
-    formData.append('description', fileData.description);
-    
+    formData.append("file", fileData.file);
+    formData.append("fileType", fileData.fileType);
+    formData.append("description", fileData.description);
+
     return api.post(`/patients/${patientId}/files`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { "Content-Type": "multipart/form-data" },
     });
   },
+
   getByPatient: (patientId) => api.get(`/patients/${patientId}/files`),
 };
 
-// Analytics API
+// ===========================
+// ANALYTICS API
+// ===========================
 export const analyticsAPI = {
-  getOverview: () => api.get('/analytics/overview'),
+  getOverview: () => api.get("/analytics/overview"),
 };
 
 export default api;
