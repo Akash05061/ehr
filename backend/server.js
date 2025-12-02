@@ -12,11 +12,13 @@ const s3Service = require("./s3-service");
 const app = express();
 app.use(express.json());
 
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -30,7 +32,7 @@ let pool;
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    connectionLimit: 20
+    connectionLimit: 20,
   });
 
   console.log("📌 Connected to MySQL (RDS)");
@@ -74,8 +76,32 @@ app.post("/api/auth/register", async (req, res) => {
       [username, hashed, firstName, lastName, email, role || "staff"]
     );
 
-    res.json({ message: "User registered" });
+    const [rows] = await pool.query(`SELECT * FROM users WHERE username = ?`, [
+      username,
+    ]);
+
+    const user = rows[0];
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role.toLowerCase() },
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role.toLowerCase(),
+      },
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Registration failed" });
   }
 });
@@ -85,8 +111,12 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    const [rows] = await pool.query("SELECT * FROM users WHERE username = ?", [username]);
-    if (rows.length === 0) return res.status(401).json({ error: "Invalid credentials" });
+    const [rows] = await pool.query(
+      "SELECT * FROM users WHERE username = ?",
+      [username]
+    );
+    if (rows.length === 0)
+      return res.status(401).json({ error: "Invalid credentials" });
 
     const user = rows[0];
     const valid = await bcrypt.compare(password, user.password);
@@ -94,14 +124,50 @@ app.post("/api/auth/login", async (req, res) => {
     if (!valid) return res.status(401).json({ error: "Invalid credentials" });
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      { id: user.id, role: user.role.toLowerCase() },
       JWT_SECRET,
       { expiresIn: "24h" }
     );
 
-    res.json({ token, user });
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role.toLowerCase(),
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// VERIFY TOKEN
+app.get("/api/auth/me", authenticate, async (req, res) => {
+  try {
+    const [rows] = await pool.query(`SELECT * FROM users WHERE id = ?`, [
+      req.user.id,
+    ]);
+
+    const user = rows[0];
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role.toLowerCase(),
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Token verification failed" });
   }
 });
 
@@ -122,7 +188,9 @@ app.get("/api/patients", authenticate, async (req, res) => {
 // GET SINGLE PATIENT
 app.get("/api/patients/:id", authenticate, async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM patients WHERE id = ?", [req.params.id]);
+    const [rows] = await pool.query("SELECT * FROM patients WHERE id = ?", [
+      req.params.id,
+    ]);
     res.json(rows[0]);
   } catch {
     res.status(500).json({ error: "Failed to load patient" });
@@ -130,37 +198,64 @@ app.get("/api/patients/:id", authenticate, async (req, res) => {
 });
 
 // CREATE PATIENT
-app.post("/api/patients", authenticate, allowRoles(["admin", "doctor", "receptionist"]), async (req, res) => {
-  try {
-    const { firstName, lastName, dateOfBirth, gender, phone, email, bloodType } = req.body;
+app.post(
+  "/api/patients",
+  authenticate,
+  allowRoles(["admin", "doctor", "receptionist"]),
+  async (req, res) => {
+    try {
+      const {
+        firstName,
+        lastName,
+        dateOfBirth,
+        gender,
+        phone,
+        email,
+        bloodType,
+      } = req.body;
 
-    await pool.query(
-      `INSERT INTO patients (firstName, lastName, dateOfBirth, gender, phone, email, bloodType, createdBy)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [firstName, lastName, dateOfBirth, gender, phone, email, bloodType, req.user.id]
-    );
+      await pool.query(
+        `INSERT INTO patients (firstName, lastName, dateOfBirth, gender, phone, email, bloodType, createdBy)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          firstName,
+          lastName,
+          dateOfBirth,
+          gender,
+          phone,
+          email,
+          bloodType,
+          req.user.id,
+        ]
+      );
 
-    res.json({ message: "Patient added" });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to create patient" });
+      res.json({ message: "Patient added" });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to create patient" });
+    }
   }
-});
+);
 
 // UPDATE PATIENT
-app.put("/api/patients/:id", authenticate, allowRoles(["admin", "doctor"]), async (req, res) => {
-  try {
-    const { firstName, lastName, phone, email } = req.body;
+app.put(
+  "/api/patients/:id",
+  authenticate,
+  allowRoles(["admin", "doctor"]),
+  async (req, res) => {
+    try {
+      const { firstName, lastName, phone, email } = req.body;
 
-    await pool.query(
-      `UPDATE patients SET firstName=?, lastName=?, phone=?, email=? WHERE id=?`,
-      [firstName, lastName, phone, email, req.params.id]
-    );
+      await pool.query(
+        `UPDATE patients SET firstName=?, lastName=?, phone=?, email=? WHERE id=?`,
+        [firstName, lastName, phone, email, req.params.id]
+      );
 
-    res.json({ message: "Patient updated" });
-  } catch {
-    res.status(500).json({ error: "Update failed" });
+      res.json({ message: "Patient updated" });
+    } catch {
+      res.status(500).json({ error: "Update failed" });
+    }
   }
-});
+);
 
 // =============================================================
 // ====================== MEDICAL RECORDS =======================
@@ -174,24 +269,39 @@ app.get("/api/patients/:id/records", authenticate, async (req, res) => {
   res.json({ medicalRecords: rows });
 });
 
-app.post("/api/patients/:id/records", authenticate, allowRoles(["admin", "doctor"]), async (req, res) => {
-  const { visitDate, symptoms, diagnosis, treatment, vitals } = req.body;
+app.post(
+  "/api/patients/:id/records",
+  authenticate,
+  allowRoles(["admin", "doctor"]),
+  async (req, res) => {
+    const { visitDate, symptoms, diagnosis, treatment, vitals } = req.body;
 
-  await pool.query(
-    `INSERT INTO medicalRecords (patientId, visitDate, symptoms, diagnosis, treatment, vitals, createdBy)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [req.params.id, visitDate, JSON.stringify(symptoms), diagnosis, treatment, JSON.stringify(vitals), req.user.id]
-  );
+    await pool.query(
+      `INSERT INTO medicalRecords (patientId, visitDate, symptoms, diagnosis, treatment, vitals, createdBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        req.params.id,
+        visitDate,
+        JSON.stringify(symptoms),
+        diagnosis,
+        treatment,
+        JSON.stringify(vitals),
+        req.user.id,
+      ]
+    );
 
-  res.json({ message: "Record added" });
-});
+    res.json({ message: "Record added" });
+  }
+);
 
 // =============================================================
 // ======================== APPOINTMENTS ========================
 // =============================================================
 
 app.get("/api/appointments", authenticate, async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM appointments ORDER BY appointmentDate ASC");
+  const [rows] = await pool.query(
+    "SELECT * FROM appointments ORDER BY appointmentDate ASC"
+  );
   res.json({ appointments: rows });
 });
 
@@ -211,17 +321,22 @@ app.post("/api/appointments", authenticate, async (req, res) => {
 // ======================= PRESCRIPTIONS ========================
 // =============================================================
 
-app.post("/api/prescriptions", authenticate, allowRoles(["admin", "doctor"]), async (req, res) => {
-  const { patientId, medicationName, dosage, instructions } = req.body;
+app.post(
+  "/api/prescriptions",
+  authenticate,
+  allowRoles(["admin", "doctor"]),
+  async (req, res) => {
+    const { patientId, medicationName, dosage, instructions } = req.body;
 
-  await pool.query(
-    `INSERT INTO prescriptions (patientId, medicationName, dosage, instructions, prescribedBy)
-     VALUES (?, ?, ?, ?, ?)`,
-    [patientId, medicationName, dosage, instructions, req.user.id]
-  );
+    await pool.query(
+      `INSERT INTO prescriptions (patientId, medicationName, dosage, instructions, prescribedBy)
+       VALUES (?, ?, ?, ?, ?)`,
+      [patientId, medicationName, dosage, instructions, req.user.id]
+    );
 
-  res.json({ message: "Prescription added" });
-});
+    res.json({ message: "Prescription added" });
+  }
+);
 
 // =============================================================
 // ========================= LAB RESULTS ========================
@@ -243,37 +358,60 @@ app.post("/api/lab-results", authenticate, async (req, res) => {
 // ========================= FILE UPLOAD ========================
 // =============================================================
 
-app.post("/api/patients/:id/files", authenticate, upload.single("file"), async (req, res) => {
-  const file = req.file;
-  if (!file) return res.status(400).json({ error: "File missing" });
+app.post(
+  "/api/patients/:id/files",
+  authenticate,
+  upload.single("file"),
+  async (req, res) => {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: "File missing" });
 
-  const upload = await s3Service.uploadFile(req.params.id, file);
-  if (!upload.success) return res.status(500).json(upload);
+    const uploadResult = await s3Service.uploadFile(req.params.id, file);
+    if (!uploadResult.success) return res.status(500).json(uploadResult);
 
-  await pool.query(
-    `INSERT INTO medicalFiles (patientId, fileName, fileType, s3Key, s3Url, uploadedBy)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [req.params.id, file.originalname, file.mimetype, upload.key, upload.url, req.user.id]
-  );
+    await pool.query(
+      `INSERT INTO medicalFiles (patientId, fileName, fileType, s3Key, s3Url, uploadedBy)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        req.params.id,
+        file.originalname,
+        file.mimetype,
+        uploadResult.key,
+        uploadResult.url,
+        req.user.id,
+      ]
+    );
 
-  res.json({ message: "File uploaded", url: upload.url });
-});
+    res.json({ message: "File uploaded", url: uploadResult.url });
+  }
+);
 
 // =============================================================
 // =========================== ANALYTICS ========================
 // =============================================================
 
-app.get("/api/analytics/overview", authenticate, allowRoles(["admin"]), async (req, res) => {
-  const [[patients]] = await pool.query("SELECT COUNT(*) AS total FROM patients");
-  const [[appointments]] = await pool.query("SELECT COUNT(*) AS total FROM appointments");
-  const [[records]] = await pool.query("SELECT COUNT(*) AS total FROM medicalRecords");
+app.get(
+  "/api/analytics/overview",
+  authenticate,
+  allowRoles(["admin"]),
+  async (req, res) => {
+    const [[patients]] = await pool.query(
+      "SELECT COUNT(*) AS total FROM patients"
+    );
+    const [[appointments]] = await pool.query(
+      "SELECT COUNT(*) AS total FROM appointments"
+    );
+    const [[records]] = await pool.query(
+      "SELECT COUNT(*) AS total FROM medicalRecords"
+    );
 
-  res.json({
-    totalPatients: patients.total,
-    totalAppointments: appointments.total,
-    totalRecords: records.total
-  });
-});
+    res.json({
+      totalPatients: patients.total,
+      totalAppointments: appointments.total,
+      totalRecords: records.total,
+    });
+  }
+);
 
 // =============================================================
 // ========================== START SERVER =======================
