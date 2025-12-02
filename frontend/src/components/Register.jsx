@@ -12,58 +12,42 @@ const Register = () => {
     email: "",
   });
 
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
-    }
-
-    if (!formData.email.includes("@")) {
-      newErrors.email = "Invalid email address";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const validate = () => {
+    const e = {};
+    if (formData.password !== formData.confirmPassword)
+      e.confirmPassword = "Passwords do not match";
+    if (!formData.email.includes("@"))
+      e.email = "Invalid email";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validate()) return;
 
     setLoading(true);
 
-    const { confirmPassword, ...submitData } = formData;
+    const payload = {
+      username: formData.username,
+      password: formData.password,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      role: "staff",
+    };
 
-    // Default role = "staff"
-    submitData.role = "staff";
+    const result = await register(payload);
 
-    const result = await register(submitData);
-
-    if (result.success) {
-      navigate("/dashboard");
-    } else {
-      setErrors({ submit: result.error });
-    }
+    if (result.success) navigate("/dashboard");
 
     setLoading(false);
-  };
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-
-    if (errors[e.target.name]) {
-      setErrors({ ...errors, [e.target.name]: "" });
-    }
   };
 
   return (
@@ -73,98 +57,51 @@ const Register = () => {
 
         <form onSubmit={handleSubmit}>
           <div className="form-row">
-            <div className="form-group">
-              <label>First Name *</label>
-              <input
-                type="text"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleChange}
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Last Name *</label>
-              <input
-                type="text"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleChange}
-                required
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Username *</label>
-            <input
-              type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              disabled={loading}
+            <input type="text" name="firstName"
+              placeholder="First Name" required
+              value={formData.firstName}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+            />
+            <input type="text" name="lastName"
+              placeholder="Last Name" required
+              value={formData.lastName}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
             />
           </div>
 
-          <div className="form-group">
-            <label>Email *</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              disabled={loading}
-            />
-            {errors.email && <span className="error">{errors.email}</span>}
-          </div>
+          <input type="text" name="username"
+            placeholder="Username" required
+            value={formData.username}
+            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+          />
+
+          <input type="email" name="email"
+            placeholder="Email" required
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          />
+          {errors.email && <span className="error">{errors.email}</span>}
 
           <div className="form-row">
-            <div className="form-group">
-              <label>Password *</label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                disabled={loading}
-              />
-              {errors.password && <span className="error">{errors.password}</span>}
-            </div>
-
-            <div className="form-group">
-              <label>Confirm Password *</label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-                disabled={loading}
-              />
-              {errors.confirmPassword && (
-                <span className="error">{errors.confirmPassword}</span>
-              )}
-            </div>
+            <input type="password" name="password"
+              placeholder="Password" required
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            />
+            <input type="password" name="confirmPassword"
+              placeholder="Confirm Password" required
+              value={formData.confirmPassword}
+              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+            />
           </div>
-
-          {errors.submit && <div className="error-message">{errors.submit}</div>}
+          {errors.confirmPassword && <span className="error">{errors.confirmPassword}</span>}
 
           <button className="auth-button" disabled={loading} type="submit">
-            {loading ? "Creating Account..." : "Create Account"}
+            {loading ? "Creating..." : "Create Account"}
           </button>
         </form>
 
-        <div className="auth-links">
-          <p>
-            Already have an account? <Link to="/login">Login here</Link>
-          </p>
-        </div>
+        <p>Already have an account? <Link to="/login">Login</Link></p>
       </div>
     </div>
   );
