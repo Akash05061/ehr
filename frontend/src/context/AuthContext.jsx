@@ -4,108 +4,95 @@ import { toast } from "react-toastify";
 import { authAPI } from "../services/api";
 
 const AuthContext = createContext();
-
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(
+    JSON.parse(localStorage.getItem("userData")) || null
+  );
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [loading, setLoading] = useState(true);
 
-  // -----------------------------
-  // VERIFY TOKEN ON PAGE REFRESH
-  // -----------------------------
+  // ------------ VERIFY TOKEN ON REFRESH ------------
   useEffect(() => {
-    if (token) {
-      verifyToken();
-    } else {
-      setLoading(false);
-    }
+    if (token) verifyUser();
+    else setLoading(false);
   }, [token]);
 
-  const verifyToken = async () => {
+  const verifyUser = async () => {
     try {
-      const userData = JSON.parse(localStorage.getItem("userData"));
-      if (userData) {
-        setUser(userData);
+      const res = await authAPI.me();
+      if (res.data.success) {
+        setUser(res.data.user);
+        localStorage.setItem("userData", JSON.stringify(res.data.user));
       }
     } catch (error) {
-      console.error("Token verification failed:", error);
       logout();
     } finally {
       setLoading(false);
     }
   };
 
-  // -----------------------------
-  // LOGIN FUNCTION
-  // -----------------------------
+  // ------------ LOGIN ------------
   const login = async (username, password) => {
     try {
       const response = await authAPI.login({ username, password });
 
-      if (!response?.data?.token) {
-        toast.error("Login failed: No token received");
+      if (!response.data.success) {
+        toast.error("Login failed!");
         return { success: false };
       }
 
       const { token, user } = response.data;
 
-      // Save to local storage
       localStorage.setItem("token", token);
       localStorage.setItem("userData", JSON.stringify(user));
 
-      // Update state
       setToken(token);
       setUser(user);
 
       toast.success("Login successful!");
       return { success: true };
+
     } catch (error) {
-      const message = error.response?.data?.error || "Login failed";
-      toast.error(message);
-      return { success: false, error: message };
+      toast.error(error.response?.data?.error || "Login failed");
+      return { success: false };
     }
   };
 
-  // -----------------------------
-  // REGISTER FUNCTION
-  // -----------------------------
-  const register = async (userData) => {
+  // ------------ REGISTER ------------
+  const register = async (formData) => {
     try {
-      const response = await authAPI.register(userData);
+      const response = await authAPI.register(formData);
 
-      if (response?.data?.token) {
-        const { token, user } = response.data;
+      if (!response.data.success)
+        return { success: false, error: response.data.error };
 
-        localStorage.setItem("token", token);
-        localStorage.setItem("userData", JSON.stringify(user));
+      const { token, user } = response.data;
 
-        setToken(token);
-        setUser(user);
+      localStorage.setItem("token", token);
+      localStorage.setItem("userData", JSON.stringify(user));
 
-        toast.success("Registration successful!");
-        return { success: true };
-      }
-      return { success: false, error: "Registration failed" };
+      setToken(token);
+      setUser(user);
+
+      toast.success("Account created!");
+      return { success: true };
+
     } catch (error) {
-      const message = error.response?.data?.error || "Registration failed";
-      toast.error(message);
-      return { success: false, error: message };
+      const msg = error.response?.data?.error || "Registration failed";
+      toast.error(msg);
+      return { success: false, error: msg };
     }
   };
 
-  // -----------------------------
-  // LOGOUT FUNCTION
-  // -----------------------------
+  // ------------ LOGOUT ------------
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userData");
     setToken(null);
     setUser(null);
-    toast.info("Logged out successfully");
-
-    // 🔥 Auto-redirect
+    toast.info("Logged out");
     window.location.href = "/login";
   };
 
