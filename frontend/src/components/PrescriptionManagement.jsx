@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
 import { prescriptionsAPI } from "../services/api";
 
 const PrescriptionManagement = () => {
-  const { token } = useAuth();
-
   const [showForm, setShowForm] = useState(false);
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,13 +17,23 @@ const PrescriptionManagement = () => {
     fetchPrescriptions();
   }, []);
 
-  // ---------------------- FETCH PRESCRIPTIONS ----------------------
+  // ---------------------- SQL: GET ALL PRESCRIPTIONS ----------------------
   const fetchPrescriptions = async () => {
     setLoading(true);
     try {
-      // Backend: GET /prescriptions
-      const res = await prescriptionsAPI.getByPatient(""); // fetch all
-      setPrescriptions(res.data.prescriptions || []);
+      const res = await prescriptionsAPI.getAll(); // FIXED
+
+      // Normalize snake_case → camelCase
+      const normalized = (res.data.prescriptions || []).map((p) => ({
+        id: p.id,
+        patientId: p.patient_id,
+        medicationName: p.medication_name,
+        dosage: p.dosage,
+        instructions: p.instructions,
+        createdAt: p.created_at,
+      }));
+
+      setPrescriptions(normalized);
     } catch (err) {
       console.error("Error loading prescriptions:", err);
     } finally {
@@ -34,15 +41,22 @@ const PrescriptionManagement = () => {
     }
   };
 
-  // ---------------------- CREATE PRESCRIPTION ----------------------
+  // ---------------------- SQL: CREATE PRESCRIPTION ----------------------
   const handleCreatePrescription = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const res = await prescriptionsAPI.create(formData);
+      const payload = {
+        patient_id: formData.patientId,
+        medication_name: formData.medicationName,
+        dosage: formData.dosage,
+        instructions: formData.instructions,
+      };
 
-      if (res.status === 201 || res.data.success) {
+      const res = await prescriptionsAPI.create(payload);
+
+      if (res.status === 201) {
         alert("Prescription created!");
         setShowForm(false);
 
@@ -78,6 +92,7 @@ const PrescriptionManagement = () => {
         {showForm ? "✖ Close Form" : "➕ Create Prescription"}
       </button>
 
+      {/* ---------------------- FORM ---------------------- */}
       {showForm && (
         <div className="prescription-form card">
           <h3>New Prescription</h3>
@@ -139,6 +154,7 @@ const PrescriptionManagement = () => {
         </div>
       )}
 
+      {/* ---------------------- LIST ---------------------- */}
       <div className="prescriptions-list">
         <div className="section-header">
           <h2>All Prescriptions</h2>
