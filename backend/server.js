@@ -15,8 +15,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "http://YOUR_PUBLIC_IP",
-      "http://YOUR_PUBLIC_IP:3000",
+      "http://13.235.95.171",
+      "http://13.235.95.171:3000",
       "*"
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
