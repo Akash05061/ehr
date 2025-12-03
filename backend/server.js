@@ -15,7 +15,7 @@ app.use(
     origin: [
       "http://localhost:3000",
       `http://${process.env.EC2_IP}:3000`,
-      `http://${process.env.EC2_IP}`,
+      `http://${process.env.EC2_IP}`
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -27,6 +27,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "secret123";
 
 // ===================== MYSQL CONNECTION =====================
 let pool;
+
 (async () => {
   pool = await mysql.createPool({
     host: process.env.DB_HOST,
@@ -55,7 +56,7 @@ const authenticate = (req, res, next) => {
 // ======================== AUTH ROUTES ========================
 // =============================================================
 
-// LOGIN USER — PLAIN PASSWORD (NO BCRYPT)
+// LOGIN USER — plaintext password
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -70,6 +71,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     const user = rows[0];
 
+    // Plaintext password match
     if (password !== user.password)
       return res.status(401).json({ error: "Invalid credentials" });
 
@@ -97,33 +99,45 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+// ✔ REQUIRED BY FRONTEND — otherwise login page never loads user
+app.get("/api/auth/me", authenticate, async (req, res) => {
+  const [rows] = await pool.query("SELECT * FROM users WHERE id = ?", [
+    req.user.id,
+  ]);
+
+  if (!rows.length)
+    return res.status(404).json({ success: false, error: "User not found" });
+
+  const user = rows[0];
+
+  res.json({
+    success: true,
+    user: {
+      id: user.id,
+      username: user.username,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      role: user.role,
+    },
+  });
+});
+
 // =============================================================
 // ======================== PATIENTS CRUD =======================
 // =============================================================
-
-// GET ALL PATIENTS
 app.get("/api/patients", authenticate, async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM patients ORDER BY id DESC");
-    res.json({ patients: rows });
-  } catch {
-    res.status(500).json({ error: "Failed to load patients" });
-  }
+  const [rows] = await pool.query("SELECT * FROM patients ORDER BY id DESC");
+  res.json({ patients: rows });
 });
 
-// GET PATIENT BY ID
 app.get("/api/patients/:id", authenticate, async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM patients WHERE id = ?", [
-      req.params.id,
-    ]);
-    res.json({ patient: rows[0] });
-  } catch {
-    res.status(500).json({ error: "Failed to load patient" });
-  }
+  const [rows] = await pool.query("SELECT * FROM patients WHERE id = ?", [
+    req.params.id,
+  ]);
+  res.json({ patient: rows[0] });
 });
 
-// CREATE PATIENT
 app.post("/api/patients", authenticate, async (req, res) => {
   try {
     const {
@@ -156,7 +170,7 @@ app.post("/api/patients", authenticate, async (req, res) => {
 
     res.json({ success: true, message: "Patient created" });
   } catch (err) {
-    console.log(err);
+    console.log("Error creating patient:", err);
     res.status(500).json({ error: "Create patient failed" });
   }
 });
