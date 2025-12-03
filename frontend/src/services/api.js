@@ -3,7 +3,7 @@ import axios from "axios";
 // ===========================
 // CONFIGURE BACKEND URL
 // ===========================
-export const API_BASE_URL = "http://13.235.95.171:3001/api";
+export const API_BASE_URL = "http://13.201.55.18:3001/api";
 
 // Create axios instance
 const api = axios.create({
