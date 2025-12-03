@@ -20,7 +20,7 @@ export default function PatientForm() {
     e.preventDefault();
     setLoading(true);
 
-    // 🔥 SQL backend expects EXACT column names
+    // Backend needs snake_case
     const payload = {
       first_name: formData.firstName,
       last_name: formData.lastName,
@@ -56,7 +56,6 @@ export default function PatientForm() {
       } else {
         alert("❌ Error: " + res.data.error);
       }
-
     } catch (error) {
       console.error(error);
       alert("❌ Failed to create patient. Check backend logs.");
