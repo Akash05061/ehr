@@ -27,7 +27,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "secret123";
 
 // ===================== MYSQL CONNECTION =====================
 let pool;
-
 (async () => {
   pool = await mysql.createPool({
     host: process.env.DB_HOST,
@@ -56,7 +55,7 @@ const authenticate = (req, res, next) => {
 // ======================== AUTH ROUTES ========================
 // =============================================================
 
-// LOGIN USER (NO BCRYPT — PLAINTEXT PASSWORD)
+// LOGIN USER — PLAIN PASSWORD (NO BCRYPT)
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -71,7 +70,6 @@ app.post("/api/auth/login", async (req, res) => {
 
     const user = rows[0];
 
-    // Plaintext password match
     if (password !== user.password)
       return res.status(401).json({ error: "Invalid credentials" });
 
@@ -87,8 +85,8 @@ app.post("/api/auth/login", async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        firstName: user.first_name,
+        lastName: user.last_name,
         email: user.email,
         role: user.role,
       },
@@ -108,7 +106,7 @@ app.get("/api/patients", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM patients ORDER BY id DESC");
     res.json({ patients: rows });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to load patients" });
   }
 });
@@ -120,7 +118,7 @@ app.get("/api/patients/:id", authenticate, async (req, res) => {
       req.params.id,
     ]);
     res.json({ patient: rows[0] });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to load patient" });
   }
 });
@@ -158,6 +156,7 @@ app.post("/api/patients", authenticate, async (req, res) => {
 
     res.json({ success: true, message: "Patient created" });
   } catch (err) {
+    console.log(err);
     res.status(500).json({ error: "Create patient failed" });
   }
 });
