@@ -9,6 +9,9 @@ const PatientProfile = () => {
   const [activeTab, setActiveTab] = useState("profile");
 
   const [patient, setPatient] = useState(null);
+  const [appointments, setAppointments] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [medicalRecords, setMedicalRecords] = useState([]);
 
   useEffect(() => {
     loadPatientData();
@@ -27,8 +30,8 @@ const PatientProfile = () => {
 
       const p = res.data.patient;
 
-      // 🔥 Normalize SQL → Frontend format
-      const normalized = {
+      // Normalize patient
+      setPatient({
         id: p.id,
         firstName: p.first_name,
         lastName: p.last_name,
@@ -36,33 +39,39 @@ const PatientProfile = () => {
         gender: p.gender,
         phone: p.phone,
         email: p.email,
-        city: p.city,
+        city: p.city
+      });
 
-        appointments: p.appointments?.map(a => ({
+      // Normalize appointments
+      setAppointments(
+        res.data.appointments.map(a => ({
           id: a.id,
           appointmentDate: a.appointment_date,
           reason: a.reason,
           status: a.status
-        })) || [],
+        }))
+      );
 
-        prescriptions: p.prescriptions?.map(pr => ({
+      // Normalize prescriptions
+      setPrescriptions(
+        res.data.prescriptions.map(pr => ({
           id: pr.id,
           medicationName: pr.medication_name,
           dosage: pr.dosage,
-          duration: pr.duration,
           instructions: pr.instructions
-        })) || [],
+        }))
+      );
 
-        medicalRecords: p.medicalRecords?.map(m => ({
+      // Normalize medical records
+      setMedicalRecords(
+        res.data.medical_records.map(m => ({
           id: m.id,
           visitDate: m.visit_date,
-          symptoms: Array.isArray(m.symptoms) ? m.symptoms : [],
+          symptoms: m.symptoms ? JSON.parse(m.symptoms) : [],
           diagnosis: m.diagnosis,
           treatment: m.treatment
-        })) || []
-      };
-
-      setPatient(normalized);
+        }))
+      );
 
     } catch (err) {
       console.error("Error loading patient:", err);
@@ -74,17 +83,15 @@ const PatientProfile = () => {
   if (loading) return <div className="loading">Loading patient profile...</div>;
   if (!patient) return <div className="loading">Patient not found</div>;
 
-  const { appointments, prescriptions, medicalRecords } = patient;
-
   return (
     <div className="patient-profile">
-
+      
       <div className="page-header">
         <h1>{patient.firstName} {patient.lastName}</h1>
         <p>Patient ID: {patient.id}</p>
 
         <Link to="/patients" className="secondary-button">
-          ← Back to Patients
+          ← Back
         </Link>
       </div>
 
@@ -106,75 +113,69 @@ const PatientProfile = () => {
 
       <div className="content-area">
 
-        {/* PROFILE */}
+        {/* PROFILE TAB */}
         {activeTab === "profile" && (
           <div className="card">
             <h2>Basic Information</h2>
-
-            <div className="list-item"><strong>Name:</strong> {patient.firstName} {patient.lastName}</div>
-            <div className="list-item"><strong>DOB:</strong> {patient.dateOfBirth}</div>
-            <div className="list-item"><strong>Gender:</strong> {patient.gender}</div>
-            <div className="list-item"><strong>Phone:</strong> {patient.phone}</div>
-            <div className="list-item"><strong>Email:</strong> {patient.email || "N/A"}</div>
-            <div className="list-item"><strong>City:</strong> {patient.city || "N/A"}</div>
+            <p><strong>Name:</strong> {patient.firstName} {patient.lastName}</p>
+            <p><strong>DOB:</strong> {patient.dateOfBirth}</p>
+            <p><strong>Gender:</strong> {patient.gender}</p>
+            <p><strong>Phone:</strong> {patient.phone}</p>
+            <p><strong>Email:</strong> {patient.email || "N/A"}</p>
+            <p><strong>City:</strong> {patient.city || "N/A"}</p>
           </div>
         )}
 
-        {/* MEDICAL RECORDS */}
+        {/* MEDICAL RECORDS TAB */}
         {activeTab === "medical" && (
           <div className="card">
             <h2>Medical Records</h2>
 
-            <Link to={`/patients/${patientId}/records`} className="primary-button">
-              ➕ Add Medical Record
-            </Link>
-
             {medicalRecords.length === 0 ? (
-              <p className="no-data mt-3">No records available.</p>
+              <p>No records available.</p>
             ) : (
-              medicalRecords.map((rec) => (
-                <div key={rec.id} className="list-item mt-3">
-                  <strong>Visit:</strong> {new Date(rec.visitDate).toLocaleDateString()}<br />
-                  <strong>Symptoms:</strong> {rec.symptoms.join(", ")}
-                  {rec.diagnosis && <p><strong>Diagnosis:</strong> {rec.diagnosis}</p>}
-                  {rec.treatment && <p><strong>Treatment:</strong> {rec.treatment}</p>}
+              medicalRecords.map(rec => (
+                <div key={rec.id} className="list-item">
+                  <strong>Visit:</strong> {rec.visitDate}<br />
+                  <strong>Symptoms:</strong> {rec.symptoms.join(", ")}<br />
+                  <strong>Diagnosis:</strong> {rec.diagnosis}<br />
+                  <strong>Treatment:</strong> {rec.treatment}<br />
                 </div>
               ))
             )}
           </div>
         )}
 
-        {/* APPOINTMENTS */}
+        {/* APPOINTMENTS TAB */}
         {activeTab === "appointments" && (
           <div className="card">
             <h2>Appointments</h2>
-
             {appointments.length === 0 ? (
-              <p className="no-data">No appointments found.</p>
+              <p>No appointments found.</p>
             ) : (
-              appointments.map((apt) => (
-                <div key={apt.id} className="list-item">
-                  <strong>{new Date(apt.appointmentDate).toLocaleString()}</strong><br />
-                  Reason: {apt.reason}<br />
-                  <span className={`status-badge ${apt.status}`}>{apt.status}</span>
+              appointments.map(a => (
+                <div key={a.id} className="list-item">
+                  <strong>{a.appointmentDate}</strong><br />
+                  Reason: {a.reason}<br />
+                  Status: {a.status}
                 </div>
               ))
             )}
           </div>
         )}
 
-        {/* PRESCRIPTIONS */}
+        {/* PRESCRIPTIONS TAB */}
         {activeTab === "prescriptions" && (
           <div className="card">
             <h2>Prescriptions</h2>
-
             {prescriptions.length === 0 ? (
-              <p className="no-data">No prescriptions found.</p>
+              <p>No prescriptions found.</p>
             ) : (
-              prescriptions.map((p) => (
-                <div key={p.id} className="list-item">
-                  <strong>{p.medicationName}</strong> — {p.dosage}<br />
-                  Instructions: {p.instructions || "None"}<br />
+              prescriptions.map(pr => (
+                <div key={pr.id} className="list-item">
+                  <strong>{pr.medicationName}</strong><br />
+                  Dosage: {pr.dosage}<br />
+                  Instructions: {pr.instructions}
                 </div>
               ))
             )}
