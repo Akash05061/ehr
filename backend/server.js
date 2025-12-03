@@ -9,15 +9,13 @@ const jwt = require("jsonwebtoken");
 const app = express();
 app.use(express.json());
 
-// ===================== CORS CONFIG ============================
-// Replace "YOUR_PUBLIC_IP" with your EC2 public IP
+// ===================== CORS CONFIG =========================
 app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "http://13.235.95.171",
-      "http://13.235.95.171:3000",
-      "*"
+      `http://${process.env.EC2_IP}:3000`,
+      `http://${process.env.EC2_IP}`,
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -25,7 +23,7 @@ app.use(
 );
 
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || "secret123";
 
 // ===================== MYSQL CONNECTION =====================
 let pool;
@@ -38,7 +36,8 @@ let pool;
     database: process.env.DB_NAME,
     connectionLimit: 20,
   });
-  console.log("📌 Connected to MySQL");
+
+  console.log("📌 Connected to MySQL (RDS)");
 })();
 
 // ======================== AUTH MIDDLEWARE ======================
@@ -57,59 +56,116 @@ const authenticate = (req, res, next) => {
 // ======================== AUTH ROUTES ========================
 // =============================================================
 
-// LOGIN (PLAINTEXT)
+// LOGIN USER (NO BCRYPT — PLAINTEXT PASSWORD)
 app.post("/api/auth/login", async (req, res) => {
-  const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-  const [rows] = await pool.query(
-    "SELECT * FROM users WHERE username = ?",
-    [username]
-  );
+    const [rows] = await pool.query(
+      "SELECT * FROM users WHERE username = ?",
+      [username]
+    );
 
-  if (rows.length === 0)
-    return res.status(401).json({ error: "Invalid credentials" });
+    if (rows.length === 0)
+      return res.status(401).json({ error: "Invalid credentials" });
 
-  const user = rows[0];
+    const user = rows[0];
 
-  // PLAINTEXT MATCH
-  if (password !== user.password)
-    return res.status(401).json({ error: "Invalid credentials" });
+    // Plaintext password match
+    if (password !== user.password)
+      return res.status(401).json({ error: "Invalid credentials" });
 
-  const token = jwt.sign(
-    { id: user.id, role: user.role },
-    JWT_SECRET,
-    { expiresIn: "24h" }
-  );
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
 
-  res.json({
-    success: true,
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      email: user.email,
-      role: user.role,
-    },
-  });
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Login failed" });
+  }
 });
 
 // =============================================================
-// ======================== PATIENTS ===========================
+// ======================== PATIENTS CRUD =======================
 // =============================================================
 
+// GET ALL PATIENTS
 app.get("/api/patients", authenticate, async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM patients ORDER BY id DESC");
-  res.json({ patients: rows });
+  try {
+    const [rows] = await pool.query("SELECT * FROM patients ORDER BY id DESC");
+    res.json({ patients: rows });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to load patients" });
+  }
+});
+
+// GET PATIENT BY ID
+app.get("/api/patients/:id", authenticate, async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM patients WHERE id = ?", [
+      req.params.id,
+    ]);
+    res.json({ patient: rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to load patient" });
+  }
+});
+
+// CREATE PATIENT
+app.post("/api/patients", authenticate, async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      dob,
+      gender,
+      phone,
+      email,
+      city,
+      blood_type,
+      medical_history,
+    } = req.body;
+
+    await pool.query(
+      `INSERT INTO patients (first_name, last_name, dob, gender, phone, email, city, blood_type, medical_history)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        firstName,
+        lastName,
+        dob,
+        gender,
+        phone,
+        email,
+        city,
+        blood_type,
+        JSON.stringify(medical_history || []),
+      ]
+    );
+
+    res.json({ success: true, message: "Patient created" });
+  } catch (err) {
+    res.status(500).json({ error: "Create patient failed" });
+  }
 });
 
 // =============================================================
-// ============ MEDICAL RECORDS / PRESCRIPTIONS / APPOINTMENTS =
+// ====================== MEDICAL RECORDS =======================
 // =============================================================
-
-// GET medical records
-app.get("/api/patients/:id/medical-records", authenticate, async (req, res) => {
+app.get("/api/patients/:id/records", authenticate, async (req, res) => {
   const [rows] = await pool.query(
     "SELECT * FROM medical_records WHERE patient_id = ? ORDER BY id DESC",
     [req.params.id]
@@ -117,81 +173,25 @@ app.get("/api/patients/:id/medical-records", authenticate, async (req, res) => {
   res.json({ records: rows });
 });
 
-// Add medical record
-app.post("/api/patients/:id/medical-records", authenticate, async (req, res) => {
-  const {
-    visit_date,
-    symptoms,
-    diagnosis,
-    treatment,
-    medications,
-    vitals,
-    notes,
-    follow_up_date
-  } = req.body;
-
-  await pool.query(
-    `INSERT INTO medical_records (
-        patient_id, visit_date, symptoms, diagnosis, treatment, medications, vitals, notes, follow_up_date, created_by
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      req.params.id,
-      visit_date,
-      JSON.stringify(symptoms),
-      diagnosis,
-      treatment,
-      JSON.stringify(medications),
-      JSON.stringify(vitals),
-      notes,
-      follow_up_date,
-      req.user.id
-    ]
-  );
-
-  res.json({ success: true, message: "Record added" });
-});
-
-// Appointments
+// =============================================================
+// ======================== APPOINTMENTS ========================
+// =============================================================
 app.get("/api/appointments", authenticate, async (req, res) => {
   const [rows] = await pool.query("SELECT * FROM appointments");
   res.json({ appointments: rows });
 });
 
-// Create appointment
-app.post("/api/appointments", authenticate, async (req, res) => {
-  const { patient_id, doctor_id, appointment_date, reason } = req.body;
-
-  await pool.query(
-    `INSERT INTO appointments (patient_id, doctor_id, appointment_date, reason, status)
-     VALUES (?, ?, ?, ?, 'scheduled')`,
-    [patient_id, doctor_id, appointment_date, reason]
-  );
-
-  res.json({ success: true, message: "Appointment created" });
-});
-
-// Prescriptions
+// =============================================================
+// ======================= PRESCRIPTIONS ========================
+// =============================================================
 app.get("/api/prescriptions", authenticate, async (req, res) => {
   const [rows] = await pool.query("SELECT * FROM prescriptions");
   res.json({ prescriptions: rows });
 });
 
-app.post("/api/prescriptions", authenticate, async (req, res) => {
-  const { patient_id, medication_name, dosage, instructions } = req.body;
-
-  await pool.query(
-    `INSERT INTO prescriptions (patient_id, medication_name, dosage, instructions)
-     VALUES (?, ?, ?, ?)`,
-    [patient_id, medication_name, dosage, instructions]
-  );
-
-  res.json({ success: true, message: "Prescription added" });
-});
-
 // =============================================================
 // ========================== START SERVER =======================
 // =============================================================
-
-app.listen(PORT, () => {
-  console.log(`🚀 Backend running on http://0.0.0.0:${PORT}`);
-});
+app.listen(PORT, () =>
+  console.log(`🚀 Backend running on http://0.0.0.0:${PORT}`)
+);
