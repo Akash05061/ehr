@@ -7,12 +7,10 @@ export default function PatientSearch() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load all patients at page load
   useEffect(() => {
     loadPatients();
   }, []);
 
-  // 🔥 Fetch patients (with search or all)
   const loadPatients = async () => {
     setLoading(true);
     try {
@@ -22,7 +20,6 @@ export default function PatientSearch() {
         limit: 50
       });
 
-      // SQL backend returns: { success, patients, total }
       setResults(res.data.patients || []);
     } catch (err) {
       console.error("Error loading patients:", err);
@@ -30,12 +27,10 @@ export default function PatientSearch() {
     setLoading(false);
   };
 
-  // Search button click
   const runSearch = async () => {
     await loadPatients();
   };
 
-  // Search when pressing Enter
   const handleKeyPress = (e) => {
     if (e.key === "Enter") runSearch();
   };
@@ -63,7 +58,8 @@ export default function PatientSearch() {
       <div className="patients-grid">
         {results.map((p) => (
           <div key={p.id} className="card patient-card">
-            <h4>{p.firstName} {p.lastName}</h4>
+            {/* FIXED — use snake_case from backend */}
+            <h4>{p.first_name} {p.last_name}</h4>
             <p>ID: {p.id}</p>
             <p>Phone: {p.phone}</p>
 
