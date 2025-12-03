@@ -2,209 +2,216 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 
 // ===================== APP INIT ============================
 const app = express();
 app.use(express.json());
 
-// ===================== CORS CONFIG =========================
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      `http://${process.env.EC2_IP}:3000`,
-      `http://${process.env.EC2_IP}`
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    origin: ["http://localhost:3000", "*"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || "secret123";
+const JWT_SECRET = process.env.JWT_SECRET || "dummysecret123";
 
-// ===================== MYSQL CONNECTION =====================
-let pool;
+// ===================== DUMMY USER (SQL-Like) ==========================
+const dummyUser = {
+  id: 1,
+  username: "admin",
+  email: "admin@example.com",
+  role: "admin",
+  password: bcrypt.hashSync("Admin@123", 10),
+};
 
-(async () => {
-  pool = await mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    connectionLimit: 20,
-  });
-
-  console.log("📌 Connected to MySQL (RDS)");
-})();
+// ===================== DUMMY PATIENTS (SQL FORMAT) ====================
+let dummyPatients = [
+  {
+    id: 1,
+    first_name: "Arjun",
+    last_name: "Sharma",
+    dob: "1990-05-12",
+    gender: "Male",
+    phone: "9876543210",
+    email: "arjun@example.com",
+    city: "Bangalore",
+    blood_type: "A+",
+    medical_history: ["diabetes"],
+    appointments: [],
+    prescriptions: [],
+    medicalRecords: []
+  },
+  {
+    id: 2,
+    first_name: "Meera",
+    last_name: "Rao",
+    dob: "1985-09-23",
+    gender: "Female",
+    phone: "9988776655",
+    email: "meera@example.com",
+    city: "Chennai",
+    blood_type: "O-",
+    medical_history: [],
+    appointments: [],
+    prescriptions: [],
+    medicalRecords: []
+  },
+  {
+    id: 3,
+    first_name: "Rahul",
+    last_name: "Verma",
+    dob: "2000-12-01",
+    gender: "Male",
+    phone: "9123456780",
+    email: "rahul@example.com",
+    city: "Hyderabad",
+    blood_type: "B+",
+    medical_history: ["asthma"],
+    appointments: [],
+    prescriptions: [],
+    medicalRecords: []
+  },
+  {
+    id: 4,
+    first_name: "Sneha",
+    last_name: "Patil",
+    dob: "1995-03-15",
+    gender: "Female",
+    phone: "9001122334",
+    email: "sneha@example.com",
+    city: "Mumbai",
+    blood_type: "AB+",
+    medical_history: [],
+    appointments: [],
+    prescriptions: [],
+    medicalRecords: []
+  },
+  {
+    id: 5,
+    first_name: "Vikram",
+    last_name: "Shetty",
+    dob: "1988-07-27",
+    gender: "Male",
+    phone: "9876001234",
+    email: "vikram@example.com",
+    city: "Delhi",
+    blood_type: "O+",
+    medical_history: ["hypertension"],
+    appointments: [],
+    prescriptions: [],
+    medicalRecords: []
+  },
+];
 
 // ======================== AUTH MIDDLEWARE ======================
-const authenticate = (req, res, next) => {
+function auth(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ error: "Token required" });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: "Invalid token" });
+
     req.user = user;
     next();
   });
-};
+}
 
 // =============================================================
 // ======================== AUTH ROUTES ========================
 // =============================================================
 
-// LOGIN USER — plaintext password
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { username, password } = req.body;
+app.post("/api/auth/login", (req, res) => {
+  const { username, password } = req.body;
 
-    const [rows] = await pool.query(
-      "SELECT * FROM users WHERE username = ?",
-      [username]
-    );
+  if (username !== dummyUser.username)
+    return res.status(401).json({ error: "Invalid user" });
 
-    if (rows.length === 0)
-      return res.status(401).json({ error: "Invalid credentials" });
+  const valid = bcrypt.compareSync(password, dummyUser.password);
+  if (!valid) return res.status(401).json({ error: "Invalid password" });
 
-    const user = rows[0];
-
-    // Plaintext password match
-    if (password !== user.password)
-      return res.status(401).json({ error: "Invalid credentials" });
-
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        email: user.email,
-        role: user.role,
-      },
-    });
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ error: "Login failed" });
-  }
-});
-
-// ✔ REQUIRED BY FRONTEND — otherwise login page never loads user
-app.get("/api/auth/me", authenticate, async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM users WHERE id = ?", [
-    req.user.id,
-  ]);
-
-  if (!rows.length)
-    return res.status(404).json({ success: false, error: "User not found" });
-
-  const user = rows[0];
+  const token = jwt.sign(
+    { id: dummyUser.id, role: dummyUser.role },
+    JWT_SECRET,
+    { expiresIn: "24h" }
+  );
 
   res.json({
     success: true,
+    token,
     user: {
-      id: user.id,
-      username: user.username,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      email: user.email,
-      role: user.role,
+      id: dummyUser.id,
+      username: dummyUser.username,
+      email: dummyUser.email,
+      role: dummyUser.role,
     },
   });
 });
 
 // =============================================================
-// ======================== PATIENTS CRUD =======================
+// ======================== PATIENT ROUTES ======================
 // =============================================================
-app.get("/api/patients", authenticate, async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM patients ORDER BY id DESC");
-  res.json({ patients: rows });
-});
 
-app.get("/api/patients/:id", authenticate, async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM patients WHERE id = ?", [
-    req.params.id,
-  ]);
-  res.json({ patient: rows[0] });
-});
+// GET ALL PATIENTS (Supports Search)
+app.get("/api/patients", auth, (req, res) => {
+  const search = req.query.search?.toLowerCase() || "";
 
-app.post("/api/patients", authenticate, async (req, res) => {
-  try {
-    const {
-      firstName,
-      lastName,
-      dob,
-      gender,
-      phone,
-      email,
-      city,
-      blood_type,
-      medical_history,
-    } = req.body;
-
-    await pool.query(
-      `INSERT INTO patients (first_name, last_name, dob, gender, phone, email, city, blood_type, medical_history)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        firstName,
-        lastName,
-        dob,
-        gender,
-        phone,
-        email,
-        city,
-        blood_type,
-        JSON.stringify(medical_history || []),
-      ]
-    );
-
-    res.json({ success: true, message: "Patient created" });
-  } catch (err) {
-    console.log("Error creating patient:", err);
-    res.status(500).json({ error: "Create patient failed" });
-  }
-});
-
-// =============================================================
-// ====================== MEDICAL RECORDS =======================
-// =============================================================
-app.get("/api/patients/:id/records", authenticate, async (req, res) => {
-  const [rows] = await pool.query(
-    "SELECT * FROM medical_records WHERE patient_id = ? ORDER BY id DESC",
-    [req.params.id]
+  const filtered = dummyPatients.filter((p) =>
+    p.first_name.toLowerCase().includes(search) ||
+    p.last_name.toLowerCase().includes(search) ||
+    p.phone.includes(search) ||
+    p.email.toLowerCase().includes(search)
   );
-  res.json({ records: rows });
+
+  res.json({ success: true, patients: filtered });
 });
 
-// =============================================================
-// ======================== APPOINTMENTS ========================
-// =============================================================
-app.get("/api/appointments", authenticate, async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM appointments");
-  res.json({ appointments: rows });
+// GET PATIENT BY ID
+app.get("/api/patients/:id", auth, (req, res) => {
+  const id = Number(req.params.id);
+
+  const patient = dummyPatients.find((p) => p.id === id);
+
+  if (!patient) return res.json({ success: false });
+
+  res.json({
+    success: true,
+    patient,
+  });
 });
 
-// =============================================================
-// ======================= PRESCRIPTIONS ========================
-// =============================================================
-app.get("/api/prescriptions", authenticate, async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM prescriptions");
-  res.json({ prescriptions: rows });
+// CREATE PATIENT (Stored in memory)
+app.post("/api/patients", auth, (req, res) => {
+  const newId = dummyPatients.length + 1;
+
+  const newPatient = {
+    id: newId,
+    first_name: req.body.first_name,
+    last_name: req.body.last_name,
+    dob: req.body.dob,
+    gender: req.body.gender,
+    phone: req.body.phone,
+    email: req.body.email,
+    city: req.body.city,
+    blood_type: req.body.blood_type,
+    medical_history: req.body.medical_history || [],
+    appointments: [],
+    prescriptions: [],
+    medicalRecords: [],
+  };
+
+  dummyPatients.push(newPatient);
+
+  res.json({ success: true, patient: newPatient });
 });
 
 // =============================================================
 // ========================== START SERVER =======================
 // =============================================================
 app.listen(PORT, () =>
-  console.log(`🚀 Backend running on http://0.0.0.0:${PORT}`)
+  console.log(`🚀 Backend running at http://0.0.0.0:${PORT}`)
 );
